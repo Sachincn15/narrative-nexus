@@ -51,14 +51,23 @@ def load_data(uploaded_file):
     if uploaded_file:
         try:
             if uploaded_file.name.endswith('.csv'):
-                return pd.read_csv(uploaded_file)
+                # FORCE UTF-8 ENCODING TO PRESERVE EMOJIS
+                return pd.read_csv(uploaded_file, encoding='utf-8', encoding_errors='replace')
             elif uploaded_file.name.endswith('.txt'):
                 return pd.DataFrame({"text": [uploaded_file.read().decode("utf-8")]})
+        except UnicodeDecodeError:
+            # Fallback if utf-8 fails
+            try:
+                uploaded_file.seek(0)
+                return pd.read_csv(uploaded_file, encoding='latin1')
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
         except Exception as e:
             st.error(f"Error reading file: {e}")
     return None
 
 def preprocess_text(text):
+    # This is for TOPIC MODELING only (removes emojis/punctuation)
     text = str(text).lower()
     text = ''.join(c for c in text if c.isalnum() or c.isspace())
     stop_words = set(stopwords.words('english'))
@@ -74,7 +83,7 @@ def run_topic_modeling(text_data, n_topics=3):
     lda.fit(dtm)
     return lda, vectorizer
 
-# --- UPDATED SENTIMENT FUNCTION WITH CUSTOM LEXICON ---
+# --- UPDATED SENTIMENT FUNCTION ---
 def get_sentiment(text):
     """
     Uses VADER with CUSTOM UPDATES for slang and emojis.
@@ -82,21 +91,21 @@ def get_sentiment(text):
     analyzer = SentimentIntensityAnalyzer()
     
     # === MANUALLY TEACHING THE MODEL ===
-    # We add custom scores: Positive (+1 to +4), Negative (-1 to -4)
     new_words = {
-        '🔥': 3.0,        # Fire = Strong Positive
-        'fire': 2.5,      # Slang
-        'lit': 2.5,       # Slang
-        'goat': 3.0,      # Greatest of all time
-        'mid': -1.5,      # Mediocre
-        'trash': -3.0,    # Strong Negative
-        'meh': -1.0,      # Mild Negative
-        '🤢': -3.0,       # Sick/Disgust
-        '😡': -3.0,       # Angry
-        '❤️': 3.0,        # Heart
-        '🙂': 2.0         # Smile
+        '🔥': 4.0,        # Increased weight for Fire
+        'fire': 3.0,
+        'lit': 3.0,
+        'goat': 3.5,
+        'mid': -2.0,
+        'trash': -3.5,
+        'meh': -1.5,
+        '🤢': -3.5,
+        '😡': -3.5,
+        '❤️': 3.5,
+        '🙂': 2.0,
+        'w': 3.0,         # 'W' (Win)
+        'l': -3.0         # 'L' (Loss)
     }
-    # Update the internal dictionary
     analyzer.lexicon.update(new_words)
     
     score = analyzer.polarity_scores(str(text))
@@ -117,6 +126,19 @@ lottie_ai = load_lottieurl("https://assets5.lottiefiles.com/packages/lf20_m9n89k
 with st.sidebar:
     if lottie_ai:
         st_lottie(lottie_ai, height=200, key="ai_bot")
+    st.markdown("---")
+    
+    # --- DEBUG SANDBOX ---
+    st.markdown("### 🧪 Live Sentiment Test")
+    test_input = st.text_input("Type a sentence (e.g., 'So 🔥'):")
+    if test_input:
+        score = get_sentiment(test_input)
+        label = get_sentiment_label(score)
+        st.markdown(f"**Score:** {score:.2f}")
+        st.markdown(f"**Result:** {label}")
+        if score == 0:
+            st.warning("⚠️ If score is 0, the model didn't see the emoji.")
+    
     st.markdown("---")
     
     selected = option_menu(
@@ -143,7 +165,7 @@ if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
     
     st.markdown("## 📚 Platform Documentation")
-    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data. Below is a detailed breakdown of the models and logic used.")
+    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data.")
 
     st.markdown("---")
 
@@ -272,14 +294,14 @@ elif selected == "Topic Modeling":
         st.warning("Please upload data first.")
 
 # ==========================================
-# 4. SENTIMENT ANALYSIS TAB (ENHANCED)
+# 4. SENTIMENT ANALYSIS TAB
 # ==========================================
 elif selected == "Sentiment Analysis":
     if 'df' in st.session_state:
         df = st.session_state['df']
         text_col = st.selectbox("Select text column for sentiment:", df.columns.tolist(), key="sent_col")
         
-        # Calculate Scores with CUSTOM LEXICON
+        # Calculate Scores
         df['sentiment_score'] = df[text_col].astype(str).apply(get_sentiment)
         
         # Apply Emoji Labels
