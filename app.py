@@ -112,10 +112,12 @@ def get_sentiment(text):
     return score['compound']
 
 # --- EMOJI LABEL FUNCTION ---
+
 def get_sentiment_label(score):
-    if score > 0.05:
+    
+    if score >= 0.25:
         return "Positive 😀"
-    elif score < -0.05:
+    elif score <= -0.25:
         return "Negative 😞"
     else:
         return "Neutral 😐"
