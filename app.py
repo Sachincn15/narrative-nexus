@@ -84,6 +84,7 @@ def run_topic_modeling(text_data, n_topics=3):
     return lda, vectorizer
 
 # --- UPDATED SENTIMENT FUNCTION ---
+# --- UPDATED SENTIMENT FUNCTION (Review Fixer) ---
 def get_sentiment(text):
     """
     Uses VADER with CUSTOM UPDATES for slang and emojis.
@@ -92,19 +93,30 @@ def get_sentiment(text):
     
     # === MANUALLY TEACHING THE MODEL ===
     new_words = {
-        '🔥': 4.0,        
-        'lit': 3.0,
-        'goat': 3.5,
-        'mid': -2.0,
-        'trash': -3.5,
-        'meh': -1.5,
-        '🤢': -3.5,
-        '😡': -3.5,
-        '❤️': 3.5,
-        '🙂': 2.0,
-        'w': 3.0,         # 'W' (Win)
-        'l': -3.0         # 'L' (Loss)
+        # Emojis & Slang
+        '🔥': 3.0,
+        'lit': 2.5,
+        'goat': 3.0,
+        'w': 3.0,
+        'l': -3.0,
+        '❤️': 3.0,
+        
+        # FIX FOR YOUR REVIEW:
+        # We make these words VERY negative to overpower "perfectly"
+        'mess': -3.5,        
+        'confusing': -3.0,
+        'waste': -3.5,
+        'boring': -3.0,
+        'wooden': -2.5,
+        'unconvincing': -2.5,
+        'zero': -2.0,        # "Zero chemistry" context
+        'worst': -4.0,
+        'disappointing': -3.0,
+        
+        # Damping "Positive" words that might be used sarcastically
+        'perfectly': 1.5,    # Lowered from default (usually ~3.0)
     }
+    
     analyzer.lexicon.update(new_words)
     
     score = analyzer.polarity_scores(str(text))
