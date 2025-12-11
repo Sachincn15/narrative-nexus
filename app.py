@@ -8,7 +8,7 @@ import numpy as np
 from textblob import TextBlob
 from wordcloud import WordCloud
 from nltk.corpus import stopwords
-from nltk.sentiment.vader import SentimentIntensityAnalyzer # <--- NEW IMPORT
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
@@ -44,7 +44,7 @@ def load_lottieurl(url: str):
 nltk.download('stopwords', quiet=True)
 nltk.download('wordnet', quiet=True)
 nltk.download('omw-1.4', quiet=True)
-nltk.download('vader_lexicon', quiet=True) # <--- NEW DOWNLOAD
+nltk.download('vader_lexicon', quiet=True)
 
 # --- DATA PROCESSING ---
 def load_data(uploaded_file):
@@ -74,7 +74,6 @@ def run_topic_modeling(text_data, n_topics=3):
     lda.fit(dtm)
     return lda, vectorizer
 
-# --- UPDATED SENTIMENT FUNCTION (VADER) ---
 def get_sentiment(text):
     """
     Uses VADER to analyze raw text (handles caps, punctuation, emojis better).
@@ -83,6 +82,15 @@ def get_sentiment(text):
     analyzer = SentimentIntensityAnalyzer()
     score = analyzer.polarity_scores(str(text))
     return score['compound']
+
+# --- NEW FUNCTION: GET EMOJI LABEL ---
+def get_sentiment_label(score):
+    if score > 0.05:
+        return "Positive 😀"
+    elif score < -0.05:
+        return "Negative 😞"
+    else:
+        return "Neutral 😐"
 
 # --- MAIN APP LAYOUT ---
 lottie_ai = load_lottieurl("https://assets5.lottiefiles.com/packages/lf20_m9n89kpl.json")
@@ -109,25 +117,27 @@ with st.sidebar:
 st.title("NarrativeNexus ⚡")
 st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
 
-# ... [KEEP INSTRUCTIONS TAB AS IS] ...
+# ==========================================
+# 1. INSTRUCTIONS TAB
+# ==========================================
 if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
     st.markdown("## 📚 Platform Documentation")
-    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data. Below is a detailed breakdown of the models and logic used.")
+    st.write("Welcome to NarrativeNexus. This platform uses advanced NLP to analyze text data.")
     st.markdown("---")
     
-    # Updated Model Card for Sentiment
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">❤️ Sentiment Analysis Logic</h3>
+            <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
             <p><strong>Algorithm:</strong> VADER (Valence Aware Dictionary and sEntiment Reasoner)</p>
-            <p><strong>Why:</strong> Specialized for social media and short text. It understands:</p>
+            <p><strong>Emoji Support:</strong> It understands that 😀 is positive and 😡 is negative.</p>
+            <p><strong>Categories:</strong></p>
             <ul style="color:#e0e0e0;">
-                <li><strong>Capitalization:</strong> "GOOD" > "good"</li>
-                <li><strong>Punctuation:</strong> "Bad!!!" < "Bad"</li>
-                <li><strong>Emojis:</strong> ❤️ = Positive</li>
+                <li>Positive 😀 (Score > 0.05)</li>
+                <li>Negative 😞 (Score < -0.05)</li>
+                <li>Neutral 😐 (Score between -0.05 and 0.05)</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -137,12 +147,14 @@ if selected == "Instructions":
             <h3 style="color:#ff3131;">🔍 Topic Modeling</h3>
             <p><strong>Algorithm:</strong> Latent Dirichlet Allocation (LDA)</p>
             <p><strong>Library:</strong> Scikit-Learn</p>
-            <p><strong>How it works:</strong> Groups words that frequently appear together into hidden "Topics".</p>
+            <p>Groups words that frequently appear together into hidden "Topics".</p>
         </div>
         """, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ... [KEEP UPLOAD DATA TAB AS IS] ...
+# ==========================================
+# 2. UPLOAD DATA TAB
+# ==========================================
 elif selected == "Upload Data":
     st.markdown("""<div data-aos="fade-up" data-aos-duration="1000">""", unsafe_allow_html=True)
     st.markdown("""
@@ -151,6 +163,7 @@ elif selected == "Upload Data":
         <p style="color: #e0e0e0;">Upload your dataset below. Supports CSV and TXT.</p>
     </div>
     """, unsafe_allow_html=True)
+    
     uploaded_file = st.file_uploader("", type=['txt', 'csv']) 
     if uploaded_file:
         st.session_state['df'] = load_data(uploaded_file)
@@ -158,7 +171,9 @@ elif selected == "Upload Data":
         st.dataframe(st.session_state['df'].head())
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ... [KEEP TOPIC MODELING TAB AS IS] ...
+# ==========================================
+# 3. TOPIC MODELING TAB
+# ==========================================
 elif selected == "Topic Modeling":
     if 'df' in st.session_state:
         df = st.session_state['df']
@@ -203,16 +218,19 @@ elif selected == "Topic Modeling":
     else:
         st.warning("Please upload data first.")
 
-# --- UPDATED SENTIMENT ANALYSIS TAB ---
+# ==========================================
+# 4. SENTIMENT ANALYSIS TAB (UPDATED WITH EMOJIS)
+# ==========================================
 elif selected == "Sentiment Analysis":
     if 'df' in st.session_state:
         df = st.session_state['df']
         text_col = st.selectbox("Select text column for sentiment:", df.columns.tolist(), key="sent_col")
         
-        # USE RAW TEXT (df[text_col]) INSTEAD OF CLEANED TEXT
-        # VADER works best with punctuation, caps, and stopwords intact!
+        # Calculate Scores
         df['sentiment_score'] = df[text_col].astype(str).apply(get_sentiment)
-        df['category'] = df['sentiment_score'].apply(lambda x: 'Positive' if x > 0.05 else ('Negative' if x < -0.05 else 'Neutral'))
+        
+        # Apply Emoji Labels
+        df['category'] = df['sentiment_score'].apply(get_sentiment_label)
         
         st.markdown("---")
         
@@ -222,31 +240,38 @@ elif selected == "Sentiment Analysis":
             st.subheader("📊 Sentiment Distribution")
             chart_data = df['category'].value_counts().reset_index()
             chart_data.columns = ['category', 'count']
-            domain = ['Negative', 'Neutral', 'Positive']
+            
+            # Updated Colors and Labels for Emojis
+            domain = ['Negative 😞', 'Neutral 😐', 'Positive 😀']
             range_ = ['#ff3131', '#808080', '#00ff9d'] 
+            
             chart = alt.Chart(chart_data).mark_bar().encode(
                 x=alt.X('category', axis=alt.Axis(labelColor='white', titleColor='white')),
                 y=alt.Y('count', axis=alt.Axis(labelColor='white', titleColor='white')),
                 color=alt.Color('category', scale=alt.Scale(domain=domain, range=range_), legend=None),
                 tooltip=['category', 'count']
             ).properties(height=300).configure_view(strokeWidth=0).configure_axis(grid=False)
+            
             st.altair_chart(chart, use_container_width=True)
 
         with c2:
             st.subheader("Metrics")
             total = len(df)
-            pos_pct = (len(df[df['category']=='Positive']) / total) * 100
-            neg_pct = (len(df[df['category']=='Negative']) / total) * 100
+            pos_pct = (len(df[df['category']=='Positive 😀']) / total) * 100
+            neg_pct = (len(df[df['category']=='Negative 😞']) / total) * 100
+            
             st.metric("Total Reviews", total)
-            st.metric("Positive %", f"{pos_pct:.1f}%")
-            st.metric("Negative %", f"{neg_pct:.1f}%")
+            st.metric("Positive 😀 %", f"{pos_pct:.1f}%")
+            st.metric("Negative 😞 %", f"{neg_pct:.1f}%")
 
         st.markdown("---")
         
         # --- REVIEW INSPECTOR ---
         st.subheader("🕵️ Review Inspector")
         st.write("Click a category below to see specific reviews:")
-        filter_choice = st.radio("Show me:", ["All", "Positive", "Negative", "Neutral"], horizontal=True)
+        
+        # Updated Filter Options
+        filter_choice = st.radio("Show me:", ["All", "Positive 😀", "Negative 😞", "Neutral 😐"], horizontal=True)
         
         if filter_choice == "All":
             filtered_df = df
@@ -258,7 +283,9 @@ elif selected == "Sentiment Analysis":
     else:
         st.warning("Please upload data first.")
 
-# ... [KEEP REPORTS TAB AS IS] ...
+# ==========================================
+# 5. REPORTS TAB
+# ==========================================
 elif selected == "Reports":
     st.subheader("☁️ Word Cloud Generation")
     if 'df' in st.session_state:
@@ -266,14 +293,26 @@ elif selected == "Reports":
         if 'cleaned_text' not in df.columns:
             text_col = df.columns[0]
             df['cleaned_text'] = df[text_col].astype(str).apply(preprocess_text)
+            
         all_text = " ".join(df['cleaned_text'])
         if len(all_text) > 0:
             st.markdown("generating visualization...")
-            wordcloud = WordCloud(width=800, height=400, background_color='black', colormap='inferno', contour_color='#ff3131', contour_width=1, max_words=100).generate(all_text)
+            
+            wordcloud = WordCloud(
+                width=800, 
+                height=400, 
+                background_color='black', 
+                colormap='inferno', 
+                contour_color='#ff3131', 
+                contour_width=1, 
+                max_words=100
+            ).generate(all_text)
+            
             fig, ax = plt.subplots(figsize=(10, 5))
             fig.patch.set_facecolor('black')
             ax.imshow(wordcloud, interpolation='bilinear')
             ax.axis("off")
+            
             st.markdown('<div style="border: 2px solid #ff3131; border-radius: 10px; overflow: hidden;">', unsafe_allow_html=True)
             st.pyplot(fig)
             st.markdown('</div>', unsafe_allow_html=True)
