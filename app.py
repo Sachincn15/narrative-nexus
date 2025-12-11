@@ -92,8 +92,7 @@ def get_sentiment(text):
     
     # === MANUALLY TEACHING THE MODEL ===
     new_words = {
-        '🔥': 4.0,        # Increased weight for Fire
-        'fire': 3.0,
+        '🔥': 4.0,        
         'lit': 3.0,
         'goat': 3.5,
         'mid': -2.0,
