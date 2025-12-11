@@ -74,16 +74,35 @@ def run_topic_modeling(text_data, n_topics=3):
     lda.fit(dtm)
     return lda, vectorizer
 
+# --- UPDATED SENTIMENT FUNCTION WITH CUSTOM LEXICON ---
 def get_sentiment(text):
     """
-    Uses VADER to analyze raw text (handles caps, punctuation, emojis better).
-    Returns the 'compound' score: -1 (Most Negative) to +1 (Most Positive).
+    Uses VADER with CUSTOM UPDATES for slang and emojis.
     """
     analyzer = SentimentIntensityAnalyzer()
+    
+    # === MANUALLY TEACHING THE MODEL ===
+    # We add custom scores: Positive (+1 to +4), Negative (-1 to -4)
+    new_words = {
+        '🔥': 3.0,        # Fire = Strong Positive
+        'fire': 2.5,      # Slang
+        'lit': 2.5,       # Slang
+        'goat': 3.0,      # Greatest of all time
+        'mid': -1.5,      # Mediocre
+        'trash': -3.0,    # Strong Negative
+        'meh': -1.0,      # Mild Negative
+        '🤢': -3.0,       # Sick/Disgust
+        '😡': -3.0,       # Angry
+        '❤️': 3.0,        # Heart
+        '🙂': 2.0         # Smile
+    }
+    # Update the internal dictionary
+    analyzer.lexicon.update(new_words)
+    
     score = analyzer.polarity_scores(str(text))
     return score['compound']
 
-# --- NEW FUNCTION: GET EMOJI LABEL ---
+# --- EMOJI LABEL FUNCTION ---
 def get_sentiment_label(score):
     if score > 0.05:
         return "Positive 😀"
@@ -118,7 +137,7 @@ st.title("NarrativeNexus ⚡")
 st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
 
 # ==========================================
-# 1. INSTRUCTIONS TAB (RESTORED FULL CONTENT)
+# 1. INSTRUCTIONS TAB
 # ==========================================
 if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
@@ -128,16 +147,14 @@ if selected == "Instructions":
 
     st.markdown("---")
 
-    # --- ROW 1: Summarization & Topics ---
     c1, c2 = st.columns(2)
-    
     with c1:
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
             <p><strong>Model Used:</strong> <code>Google Flan-T5 Small</code></p>
             <p><strong>Provider:</strong> HuggingFace Transformers</p>
-            <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text, rather than just extracting existing sentences.</p>
+            <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -147,24 +164,23 @@ if selected == "Instructions":
             <h3 style="color:#ff3131;">🔍 Topic Modeling</h3>
             <p><strong>Algorithm:</strong> Latent Dirichlet Allocation (LDA)</p>
             <p><strong>Library:</strong> Scikit-Learn</p>
-            <p><strong>How it works:</strong> A statistical model that assumes documents are mixtures of topics and topics are mixtures of words. It groups words that frequently appear together into "Topics".</p>
+            <p><strong>How it works:</strong> A statistical model that groups words that frequently appear together into hidden "Topics".</p>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- ROW 2: Sentiment & Preprocessing ---
     c3, c4 = st.columns(2)
     with c3:
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
-            <p><strong>Algorithm:</strong> VADER (Valence Aware Dictionary and sEntiment Reasoner)</p>
-            <p><strong>Why:</strong> It understands social media slang, capitalization ("BAD!"), and emojis.</p>
+            <p><strong>Algorithm:</strong> VADER with Custom Lexicon</p>
+            <p><strong>Enhanced Logic:</strong> We manually taught the model that:</p>
             <ul style="color:#e0e0e0;">
-                <li><strong>Positive 😀:</strong> Score > 0.05</li>
-                <li><strong>Negative 😞:</strong> Score < -0.05</li>
-                <li><strong>Neutral 😐:</strong> Score between -0.05 and 0.05</li>
+                <li>🔥 / "Lit" = Positive</li>
+                <li>"Mid" / "Meh" = Negative/Neutral</li>
+                <li>"Goat" = Strong Positive</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -173,7 +189,7 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">⚙️ Preprocessing Pipeline</h3>
-            <p>Before analysis (Topic Modeling), text undergoes cleaning:</p>
+            <p>Before Topic Modeling, text undergoes cleaning:</p>
             <ol style="color:#e0e0e0;">
                 <li><strong>Lowercasing:</strong> "Hello" → "hello"</li>
                 <li><strong>Noise Removal:</strong> Special characters and punctuation removed.</li>
@@ -256,14 +272,14 @@ elif selected == "Topic Modeling":
         st.warning("Please upload data first.")
 
 # ==========================================
-# 4. SENTIMENT ANALYSIS TAB (WITH EMOJIS)
+# 4. SENTIMENT ANALYSIS TAB (ENHANCED)
 # ==========================================
 elif selected == "Sentiment Analysis":
     if 'df' in st.session_state:
         df = st.session_state['df']
         text_col = st.selectbox("Select text column for sentiment:", df.columns.tolist(), key="sent_col")
         
-        # Calculate Scores
+        # Calculate Scores with CUSTOM LEXICON
         df['sentiment_score'] = df[text_col].astype(str).apply(get_sentiment)
         
         # Apply Emoji Labels
