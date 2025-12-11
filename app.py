@@ -250,8 +250,28 @@ elif selected == "Topic Modeling":
                 with st.spinner("AI is thinking..."):
                     try:
                         summarizer = load_summarizer()
-                        combined_text = " ".join(df[text_col].astype(str).tolist())[:2000] 
-                        summary_result = summarizer(combined_text, max_length=130, min_length=30, do_sample=False)
+                        
+                        # --- 1. SHUFFLE & SAMPLE ---
+                        # Mix the reviews so we don't just get the first 10 similar ones
+                        sample_df = df.sample(frac=1).reset_index(drop=True)
+                        
+                        # --- 2. JOIN TEXT ---
+                        # We take the first ~2500 chars after shuffling (mix of pos/neg)
+                        raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2500]
+                        
+                        # --- 3. ADD INSTRUCTION PROMPT ---
+                        # T5 needs to be told what to do
+                        input_text = "summarize: " + raw_text
+                        
+                        # --- 4. GENERATE WITH PENALTIES ---
+                        summary_result = summarizer(
+                            input_text, 
+                            max_length=150, 
+                            min_length=50, 
+                            do_sample=False,
+                            repetition_penalty=2.0 # Stops it from repeating sentences
+                        )
+                        
                         st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary_result[0]['summary_text']}</p></div>""", unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"Error: {e}")
