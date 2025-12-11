@@ -51,6 +51,7 @@ def load_data(uploaded_file):
     if uploaded_file:
         try:
             if uploaded_file.name.endswith('.csv'):
+                # Force UTF-8 to handle emojis
                 return pd.read_csv(uploaded_file, encoding='utf-8', encoding_errors='replace')
             elif uploaded_file.name.endswith('.txt'):
                 return pd.DataFrame({"text": [uploaded_file.read().decode("utf-8")]})
@@ -59,6 +60,7 @@ def load_data(uploaded_file):
     return None
 
 def preprocess_text(text):
+    # Cleaning for Topic Modeling (removes punctuation/emojis)
     text = str(text).lower()
     text = ''.join(c for c in text if c.isalnum() or c.isspace())
     stop_words = set(stopwords.words('english'))
@@ -74,19 +76,35 @@ def run_topic_modeling(text_data, n_topics=3):
     lda.fit(dtm)
     return lda, vectorizer
 
-# --- UPDATED SENTIMENT FUNCTION ---
+# --- SENTIMENT FUNCTION (Fixed for 'Mess' vs 'Perfectly') ---
 def get_sentiment(text):
     analyzer = SentimentIntensityAnalyzer()
+    
+    # Custom Dictionary to fix common errors
     new_words = {
         '🔥': 3.0, 'fire': 3.0, 'lit': 2.5, 'goat': 3.0, 'w': 3.0, '❤️': 3.0,
-        'mess': -3.5, 'confusing': -3.0, 'waste': -3.5, 'boring': -3.0, 
-        'trash': -3.5, 'worst': -4.0, 'l': -3.0, 'perfectly': 1.5
+        
+        # Insults (Strong Negative)
+        'dont': -4.0,
+        'not': -4.0,
+        'mess': -3.5, 
+        'confusing': -3.0, 
+        'waste': -3.5, 
+        'boring': -3.0, 
+        'trash': -3.5, 
+        'worst': -4.0, 
+        'l': -3.0,
+        'wooden': -2.5,
+        'unconvincing': -2.5,
+        
+        # Damping 'perfectly' so it doesn't overpower negative reviews
+        'perfectly': 1.5 
     }
     analyzer.lexicon.update(new_words)
     score = analyzer.polarity_scores(str(text))
     return score['compound']
 
-# --- EMOJI LABEL FUNCTION ---
+# --- EMOJI LABEL FUNCTION (Stricter Thresholds) ---
 def get_sentiment_label(score):
     if score >= 0.25:
         return "Positive 😀"
@@ -130,24 +148,22 @@ st.title("NarrativeNexus ⚡")
 st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
 
 # ==========================================
-# 1. INSTRUCTIONS
+# 1. INSTRUCTIONS TAB (RESTORED)
 # ==========================================
 if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
-    
     st.markdown("## 📚 Platform Documentation")
-    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data.")
-
+    st.write("Welcome to NarrativeNexus. Below is a detailed breakdown of the AI models and logic used.")
     st.markdown("---")
-
+    
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
-            <p><strong>Model Used:</strong> <code>Google Flan-T5 Small</code></p>
+            <p><strong>Model:</strong> <code>Google Flan-T5 Small</code></p>
             <p><strong>Provider:</strong> HuggingFace Transformers</p>
-            <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text.</p>
+            <p><strong>Logic:</strong> An abstractive model that reads the text and generates a concise summary in its own words.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -155,9 +171,9 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">🔍 Topic Modeling</h3>
-            <p><strong>Algorithm:</strong> Latent Dirichlet Allocation (LDA)</p>
+            <p><strong>Algorithm:</strong> LDA (Latent Dirichlet Allocation)</p>
             <p><strong>Library:</strong> Scikit-Learn</p>
-            <p><strong>How it works:</strong> A statistical model that groups words that frequently appear together into hidden "Topics".</p>
+            <p><strong>Logic:</strong> A statistical model that finds hidden patterns (groups of words) that appear together frequently.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -168,12 +184,12 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
-            <p><strong>Algorithm:</strong> VADER with Custom Lexicon</p>
-            <p><strong>Enhanced Logic:</strong> We manually taught the model that:</p>
+            <p><strong>Algorithm:</strong> VADER (Custom Lexicon)</p>
+            <p><strong>Logic:</strong> Rule-based analysis tuned for social media.</p>
             <ul style="color:#e0e0e0;">
-                <li>🔥 / "Lit" = Positive</li>
-                <li>"Mid" / "Meh" = Negative/Neutral</li>
-                <li>"Goat" = Strong Positive</li>
+                <li><strong>Positive 😀:</strong> Score > 0.25 (e.g., 🔥, Loved, Goat)</li>
+                <li><strong>Negative 😞:</strong> Score < -0.25 (e.g., Trash, Mess, Boring)</li>
+                <li><strong>Neutral 😐:</strong> Score between -0.25 and 0.25</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -182,24 +198,18 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">⚙️ Preprocessing Pipeline</h3>
-            <p>Before Topic Modeling, text undergoes cleaning:</p>
+            <p>Before analysis, text is cleaned:</p>
             <ol style="color:#e0e0e0;">
-                <li><strong>Lowercasing:</strong> "Hello" → "hello"</li>
-                <li><strong>Noise Removal:</strong> Special characters and punctuation removed.</li>
-                <li><strong>Stopword Removal:</strong> Common words (the, is, at) are stripped.</li>
-                <li><strong>Lemmatization:</strong> Words converted to root form (e.g., "running" → "run").</li>
+                <li><strong>Lowercase:</strong> "Hello" → "hello"</li>
+                <li><strong>Noise:</strong> Punctuation removed.</li>
+                <li><strong>Lemmatization:</strong> "Running" → "Run"</li>
             </ol>
         </div>
         """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("### 🚀 How to Use")
-    st.info("1. Go to **Upload Data** and drop your CSV file.\n2. Navigate to **Topic Modeling** to find hidden themes.\n3. Check **Sentiment Analysis** for emoji-based breakdowns.\n4. Use **Reports** to visualize word clouds.")
-
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
-# 2. UPLOAD DATA
+# 2. UPLOAD DATA TAB
 # ==========================================
 elif selected == "Upload Data":
     st.markdown("""<div data-aos="fade-up" data-aos-duration="1000">""", unsafe_allow_html=True)
@@ -212,12 +222,12 @@ elif selected == "Upload Data":
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
-# 3. TOPIC MODELING
+# 3. TOPIC MODELING TAB
 # ==========================================
 elif selected == "Topic Modeling":
     if 'df' in st.session_state:
         df = st.session_state['df']
-        text_col = st.selectbox("Select text column:", df.columns.tolist())
+        text_col = st.selectbox("Select text column to analyze:", df.columns.tolist())
         df[text_col] = df[text_col].astype(str)
         df['cleaned_text'] = df[text_col].apply(preprocess_text)
         
@@ -233,7 +243,7 @@ elif selected == "Topic Modeling":
                         keywords = ", ".join([feature_names[i] for i in topic.argsort()[-10:]])
                         st.markdown(f"""<div style="padding:15px; border-left: 4px solid #ff3131; background:rgba(255,255,255,0.05); margin-bottom:10px;"><strong style="color:#ff3131;">Topic {idx+1}:</strong> <span style="color:#e0e0e0">{keywords}</span></div>""", unsafe_allow_html=True)
                 except ValueError:
-                    st.error("Not enough text data.")
+                    st.error("Not enough clean text to generate topics.")
         with col2:
             st.subheader("🧠 Summarization")
             if st.button("Generate Summary"):
@@ -249,59 +259,47 @@ elif selected == "Topic Modeling":
         st.warning("Please upload data first.")
 
 # ==========================================
-# 4. SENTIMENT ANALYSIS (NEW FEATURES ADDED)
+# 4. SENTIMENT ANALYSIS TAB (WITH SPOTLIGHT)
 # ==========================================
 elif selected == "Sentiment Analysis":
     if 'df' in st.session_state:
         df = st.session_state['df']
         text_col = st.selectbox("Select text column for sentiment:", df.columns.tolist(), key="sent_col")
         
+        # Calculate Scores
         df['sentiment_score'] = df[text_col].astype(str).apply(get_sentiment)
         df['category'] = df['sentiment_score'].apply(get_sentiment_label)
         
         st.markdown("---")
         
-        # --- SECTION: TOP PICKS (HIGHLY RECOMMENDED) ---
+        # --- SPOTLIGHT SECTION ---
         st.subheader("🏆 Spotlight Section")
-        
         col_high, col_low = st.columns(2)
         
         with col_high:
             st.markdown("### 🌟 Highly Recommended (Score > 0.75)")
             top_reviews = df[df['sentiment_score'] > 0.75].sort_values(by='sentiment_score', ascending=False).head(3)
-            
             if not top_reviews.empty:
                 for index, row in top_reviews.iterrows():
-                    st.markdown(f"""
-                    <div style="padding:10px; border:1px solid #00ff9d; border-radius:10px; margin-bottom:10px; background-color:rgba(0, 255, 157, 0.05);">
-                        <strong style="color:#00ff9d">Score: {row['sentiment_score']:.2f}</strong><br>
-                        <span style="color:white; font-style:italic;">"{row[text_col]}"</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div style="padding:10px; border:1px solid #00ff9d; border-radius:10px; margin-bottom:10px; background-color:rgba(0, 255, 157, 0.05);"><strong style="color:#00ff9d">Score: {row['sentiment_score']:.2f}</strong><br><span style="color:white;">"{row[text_col]}"</span></div>""", unsafe_allow_html=True)
             else:
-                st.info("No 'Highly Recommended' reviews found yet.")
+                st.info("No highly recommended reviews found.")
 
         with col_low:
             st.markdown("### 🚩 Critical Alerts (Score < -0.5)")
             low_reviews = df[df['sentiment_score'] < -0.5].sort_values(by='sentiment_score', ascending=True).head(3)
-            
             if not low_reviews.empty:
                 for index, row in low_reviews.iterrows():
-                    st.markdown(f"""
-                    <div style="padding:10px; border:1px solid #ff3131; border-radius:10px; margin-bottom:10px; background-color:rgba(255, 49, 49, 0.05);">
-                        <strong style="color:#ff3131">Score: {row['sentiment_score']:.2f}</strong><br>
-                        <span style="color:white; font-style:italic;">"{row[text_col]}"</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div style="padding:10px; border:1px solid #ff3131; border-radius:10px; margin-bottom:10px; background-color:rgba(255, 49, 49, 0.05);"><strong style="color:#ff3131">Score: {row['sentiment_score']:.2f}</strong><br><span style="color:white;">"{row[text_col]}"</span></div>""", unsafe_allow_html=True)
             else:
                 st.info("No critical negative reviews found.")
 
         st.markdown("---")
         
-        # --- NORMAL GRAPH SECTION ---
+        # --- GRAPH SECTION ---
         c1, c2 = st.columns([3, 1])
         with c1:
-            st.subheader("📊 Distribution")
+            st.subheader("📊 Sentiment Distribution")
             chart_data = df['category'].value_counts().reset_index()
             chart_data.columns = ['category', 'count']
             domain = ['Negative 😞', 'Neutral 😐', 'Positive 😀']
@@ -320,24 +318,24 @@ elif selected == "Sentiment Analysis":
             pos_pct = (len(df[df['category']=='Positive 😀']) / total) * 100
             neg_pct = (len(df[df['category']=='Negative 😞']) / total) * 100
             st.metric("Total Reviews", total)
-            st.metric("Positive", f"{pos_pct:.1f}%")
-            st.metric("Negative", f"{neg_pct:.1f}%")
+            st.metric("Positive 😀", f"{pos_pct:.1f}%")
+            st.metric("Negative 😞", f"{neg_pct:.1f}%")
 
-        # --- FILTER SECTION ---
         st.markdown("---")
-        st.subheader("🕵️ Filter Reviews")
+        
+        # --- FILTER SECTION ---
+        st.subheader("🕵️ Review Inspector")
         filter_choice = st.radio("Show me:", ["All", "Positive 😀", "Negative 😞", "Neutral 😐"], horizontal=True)
         if filter_choice == "All":
             filtered_df = df
         else:
             filtered_df = df[df['category'] == filter_choice]
         st.dataframe(filtered_df[[text_col, 'sentiment_score', 'category']], use_container_width=True, height=400)
-
     else:
         st.warning("Please upload data first.")
 
 # ==========================================
-# 5. REPORTS
+# 5. REPORTS TAB
 # ==========================================
 elif selected == "Reports":
     st.subheader("☁️ Word Cloud Generation")
