@@ -152,18 +152,20 @@ st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
 # ==========================================
 if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
-    st.markdown("## 📚 Platform Documentation")
-    st.write("Welcome to NarrativeNexus. Below is a detailed breakdown of the AI models and logic used.")
-    st.markdown("---")
     
+    st.markdown("## 📚 Platform Documentation")
+    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data.")
+
+    st.markdown("---")
+
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
-            <p><strong>Model:</strong> <code>Google Flan-T5 Small</code></p>
+            <p><strong>Model Used:</strong> <code>Google Flan-T5 Small</code></p>
             <p><strong>Provider:</strong> HuggingFace Transformers</p>
-            <p><strong>Logic:</strong> An abstractive model that reads the text and generates a concise summary in its own words.</p>
+            <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -171,9 +173,9 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">🔍 Topic Modeling</h3>
-            <p><strong>Algorithm:</strong> LDA (Latent Dirichlet Allocation)</p>
+            <p><strong>Algorithm:</strong> Latent Dirichlet Allocation (LDA)</p>
             <p><strong>Library:</strong> Scikit-Learn</p>
-            <p><strong>Logic:</strong> A statistical model that finds hidden patterns (groups of words) that appear together frequently.</p>
+            <p><strong>How it works:</strong> A statistical model that groups words that frequently appear together into hidden "Topics".</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -184,12 +186,12 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
-            <p><strong>Algorithm:</strong> VADER (Custom Lexicon)</p>
-            <p><strong>Logic:</strong> Rule-based analysis tuned for social media.</p>
+            <p><strong>Algorithm:</strong> VADER with Custom Lexicon</p>
+            <p><strong>Enhanced Logic:</strong> We manually taught the model that:</p>
             <ul style="color:#e0e0e0;">
-                <li><strong>Positive 😀:</strong> Score > 0.25 (e.g., 🔥, Loved, Goat)</li>
-                <li><strong>Negative 😞:</strong> Score < -0.25 (e.g., Trash, Mess, Boring)</li>
-                <li><strong>Neutral 😐:</strong> Score between -0.25 and 0.25</li>
+                <li>🔥 / "Lit" = Positive</li>
+                <li>"Mid" / "Meh" = Negative/Neutral</li>
+                <li>"Goat" = Strong Positive</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -198,14 +200,20 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">⚙️ Preprocessing Pipeline</h3>
-            <p>Before analysis, text is cleaned:</p>
+            <p>Before Topic Modeling, text undergoes cleaning:</p>
             <ol style="color:#e0e0e0;">
-                <li><strong>Lowercase:</strong> "Hello" → "hello"</li>
-                <li><strong>Noise:</strong> Punctuation removed.</li>
-                <li><strong>Lemmatization:</strong> "Running" → "Run"</li>
+                <li><strong>Lowercasing:</strong> "Hello" → "hello"</li>
+                <li><strong>Noise Removal:</strong> Special characters and punctuation removed.</li>
+                <li><strong>Stopword Removal:</strong> Common words (the, is, at) are stripped.</li>
+                <li><strong>Lemmatization:</strong> Words converted to root form (e.g., "running" → "run").</li>
             </ol>
         </div>
         """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🚀 How to Use")
+    st.info("1. Go to **Upload Data** and drop your CSV file.\n2. Navigate to **Topic Modeling** to find hidden themes.\n3. Check **Sentiment Analysis** for emoji-based breakdowns.\n4. Use **Reports** to visualize word clouds.")
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
