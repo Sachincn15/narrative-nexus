@@ -1,0 +1,59 @@
+/* --- GLOBAL TEXT COLORS (White for readability) --- */
+h1, h2, h3, h4, h5, h6, p, div, label, span, li {
+    color: #e0e0e0 !important; /* Soft White/Silver */
+}
+
+/* --- HEADERS (White with Red Glow) --- */
+h1, h2, h3 {
+    color: #ffffff !important;
+    text-shadow: 0 0 10px rgba(255, 49, 49, 0.3); /* Subtle Red Glow */
+}
+
+/* --- BUTTONS (Red Border & Text) --- */
+div.stButton > button {
+    background-color: rgba(0,0,0,0.5);
+    color: #ff3131 !important; /* Neon Red Text */
+    border: 1px solid #ff3131;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+div.stButton > button:hover {
+    background-color: #ff3131;
+    color: white !important; /* Text turns white on hover */
+    box-shadow: 0 0 15px #ff3131;
+    border-color: #ff3131;
+}
+
+/* --- FILE UPLOADER BOX --- */
+[data-testid='stFileUploader'] {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px dashed #ff3131; /* Red Dashed Border */
+    padding: 20px;
+    border-radius: 10px;
+}
+[data-testid='stFileUploader'] section {
+    background-color: transparent;
+}
+
+/* --- DROPDOWNS & INPUT FIELDS --- */
+div[data-baseweb="select"] > div {
+    background-color: #0e1117 !important;
+    color: white !important;
+    border-color: #ff3131 !important;
+}
+
+/* --- DATAFRAMES / TABLES --- */
+[data-testid="stDataFrame"] {
+    border: 1px solid rgba(255, 49, 49, 0.3);
+}
+
+/* --- SCROLLBAR --- */
+::-webkit-scrollbar {
+    width: 10px;
+    background: #0e1117;
+}
+::-webkit-scrollbar-thumb {
+    background: #ff3131; 
+    border-radius: 10px;
+}
