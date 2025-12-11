@@ -120,7 +120,7 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
-            <p><strong>Model Used:</strong> <code>distilbart-cnn-12-6</code> (Text-to-Text Transfer Transformer)</p>
+            <p><strong>Model Used:</strong> <code>google/flan-t5-small</code> (Text-to-Text Transfer Transformer)</p>
             <p><strong>Provider:</strong> HuggingFace Transformers</p>
             <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text, rather than just extracting existing sentences.</p>
         </div>
