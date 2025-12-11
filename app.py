@@ -118,38 +118,75 @@ st.title("NarrativeNexus ⚡")
 st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
 
 # ==========================================
-# 1. INSTRUCTIONS TAB
+# 1. INSTRUCTIONS TAB (RESTORED FULL CONTENT)
 # ==========================================
 if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
-    st.markdown("## 📚 Platform Documentation")
-    st.write("Welcome to NarrativeNexus. This platform uses advanced NLP to analyze text data.")
-    st.markdown("---")
     
+    st.markdown("## 📚 Platform Documentation")
+    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data. Below is a detailed breakdown of the models and logic used.")
+
+    st.markdown("---")
+
+    # --- ROW 1: Summarization & Topics ---
     c1, c2 = st.columns(2)
+    
     with c1:
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
-            <p><strong>Algorithm:</strong> VADER (Valence Aware Dictionary and sEntiment Reasoner)</p>
-            <p><strong>Emoji Support:</strong> It understands that 😀 is positive and 😡 is negative.</p>
-            <p><strong>Categories:</strong></p>
-            <ul style="color:#e0e0e0;">
-                <li>Positive 😀 (Score > 0.05)</li>
-                <li>Negative 😞 (Score < -0.05)</li>
-                <li>Neutral 😐 (Score between -0.05 and 0.05)</li>
-            </ul>
+            <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
+            <p><strong>Model Used:</strong> <code>Google Flan-T5 Small</code></p>
+            <p><strong>Provider:</strong> HuggingFace Transformers</p>
+            <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text, rather than just extracting existing sentences.</p>
         </div>
         """, unsafe_allow_html=True)
+        
     with c2:
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">🔍 Topic Modeling</h3>
             <p><strong>Algorithm:</strong> Latent Dirichlet Allocation (LDA)</p>
             <p><strong>Library:</strong> Scikit-Learn</p>
-            <p>Groups words that frequently appear together into hidden "Topics".</p>
+            <p><strong>How it works:</strong> A statistical model that assumes documents are mixtures of topics and topics are mixtures of words. It groups words that frequently appear together into "Topics".</p>
         </div>
         """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- ROW 2: Sentiment & Preprocessing ---
+    c3, c4 = st.columns(2)
+    with c3:
+        st.markdown("""
+        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
+            <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
+            <p><strong>Algorithm:</strong> VADER (Valence Aware Dictionary and sEntiment Reasoner)</p>
+            <p><strong>Why:</strong> It understands social media slang, capitalization ("BAD!"), and emojis.</p>
+            <ul style="color:#e0e0e0;">
+                <li><strong>Positive 😀:</strong> Score > 0.05</li>
+                <li><strong>Negative 😞:</strong> Score < -0.05</li>
+                <li><strong>Neutral 😐:</strong> Score between -0.05 and 0.05</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with c4:
+        st.markdown("""
+        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
+            <h3 style="color:#ff3131;">⚙️ Preprocessing Pipeline</h3>
+            <p>Before analysis (Topic Modeling), text undergoes cleaning:</p>
+            <ol style="color:#e0e0e0;">
+                <li><strong>Lowercasing:</strong> "Hello" → "hello"</li>
+                <li><strong>Noise Removal:</strong> Special characters and punctuation removed.</li>
+                <li><strong>Stopword Removal:</strong> Common words (the, is, at) are stripped.</li>
+                <li><strong>Lemmatization:</strong> Words converted to root form (e.g., "running" → "run").</li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🚀 How to Use")
+    st.info("1. Go to **Upload Data** and drop your CSV file.\n2. Navigate to **Topic Modeling** to find hidden themes.\n3. Check **Sentiment Analysis** for emoji-based breakdowns.\n4. Use **Reports** to visualize word clouds.")
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
@@ -219,7 +256,7 @@ elif selected == "Topic Modeling":
         st.warning("Please upload data first.")
 
 # ==========================================
-# 4. SENTIMENT ANALYSIS TAB (UPDATED WITH EMOJIS)
+# 4. SENTIMENT ANALYSIS TAB (WITH EMOJIS)
 # ==========================================
 elif selected == "Sentiment Analysis":
     if 'df' in st.session_state:
@@ -241,7 +278,6 @@ elif selected == "Sentiment Analysis":
             chart_data = df['category'].value_counts().reset_index()
             chart_data.columns = ['category', 'count']
             
-            # Updated Colors and Labels for Emojis
             domain = ['Negative 😞', 'Neutral 😐', 'Positive 😀']
             range_ = ['#ff3131', '#808080', '#00ff9d'] 
             
@@ -270,7 +306,6 @@ elif selected == "Sentiment Analysis":
         st.subheader("🕵️ Review Inspector")
         st.write("Click a category below to see specific reviews:")
         
-        # Updated Filter Options
         filter_choice = st.radio("Show me:", ["All", "Positive 😀", "Negative 😞", "Neutral 😐"], horizontal=True)
         
         if filter_choice == "All":
