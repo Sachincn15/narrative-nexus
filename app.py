@@ -16,7 +16,7 @@ from transformers import pipeline
 from streamlit_lottie import st_lottie
 from streamlit_option_menu import option_menu
 
-# --- IMPORT UI MODULE ---
+
 try:
     import ui
     ui.load_css()           
@@ -25,10 +25,10 @@ try:
 except Exception:
     pass 
 
-# --- CONFIG ---
+
 st.set_page_config(page_title="NarrativeNexus", layout="wide", page_icon="🔴")
 
-# --- HELPER FUNCTIONS ---
+
 @st.cache_resource
 def load_summarizer():
     return pipeline("summarization", model="google/flan-t5-small")
@@ -40,23 +40,43 @@ def load_lottieurl(url: str):
     except:
         return None
 
-# NLTK Setup
+
 nltk.download('stopwords', quiet=True)
 nltk.download('wordnet', quiet=True)
 nltk.download('omw-1.4', quiet=True)
 nltk.download('vader_lexicon', quiet=True)
 
 # --- DATA PROCESSING ---
+# --- ROBUST DATA LOADER ---
 def load_data(uploaded_file):
     if uploaded_file:
+        # 1. Try reading as a Standard CSV (Best case)
         try:
-            if uploaded_file.name.endswith('.csv'):
-                # Force UTF-8 to handle emojis
-                return pd.read_csv(uploaded_file, encoding='utf-8', encoding_errors='replace')
-            elif uploaded_file.name.endswith('.txt'):
-                return pd.DataFrame({"text": [uploaded_file.read().decode("utf-8")]})
+            return pd.read_csv(uploaded_file, encoding='utf-8', on_bad_lines='warn')
+        except:
+            pass # If that fails, move to Plan B
+
+        # 2. Plan B: Read as Raw Text (Fixes the "Comma" error)
+        try:
+            # Reset file pointer to the start
+            uploaded_file.seek(0)
+            
+            # Read all lines as a list of strings
+            content = uploaded_file.read().decode("utf-8", errors='replace')
+            lines = content.split('\n')
+            
+            # Filter out empty lines
+            clean_lines = [line.strip() for line in lines if line.strip()]
+            
+            # If the first line is the header 'review_text', remove it
+            if clean_lines and 'review_text' in clean_lines[0].lower():
+                clean_lines = clean_lines[1:]
+                
+            return pd.DataFrame({"review_text": clean_lines})
+            
         except Exception as e:
-            st.error(f"Error reading file: {e}")
+            st.error(f"Error processing file: {e}")
+            
     return None
 
 def preprocess_text(text):
@@ -97,14 +117,14 @@ def get_sentiment(text):
         'wooden': -2.5,
         'unconvincing': -2.5,
         
-        # Damping 'perfectly' so it doesn't overpower negative reviews
+        
         'perfectly': 1.5 
     }
     analyzer.lexicon.update(new_words)
     score = analyzer.polarity_scores(str(text))
     return score['compound']
 
-# --- EMOJI LABEL FUNCTION (Stricter Thresholds) ---
+
 def get_sentiment_label(score):
     if score >= 0.25:
         return "Positive 😀"
@@ -113,7 +133,7 @@ def get_sentiment_label(score):
     else:
         return "Neutral 😐"
 
-# --- MAIN APP LAYOUT ---
+
 lottie_ai = load_lottieurl("https://assets5.lottiefiles.com/packages/lf20_m9n89kpl.json")
 
 with st.sidebar:
