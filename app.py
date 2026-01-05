@@ -161,21 +161,70 @@ st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
 # ==========================================
 if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
+    
     st.markdown("## 📚 Platform Documentation")
-    st.write("Welcome to NarrativeNexus. Below is a detailed breakdown of the AI models and logic used.")
+    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data.")
+
     st.markdown("---")
+
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("""<div style="padding:20px; border:1px solid #ff3131; border-radius:10px;"><h3 style="color:#ff3131;">🧠 Summarization Engine</h3><p>Model: <code>Google Flan-T5 Small</code></p><p>Logic: Abstractive summarization.</p></div>""", unsafe_allow_html=True)
+        st.markdown("""
+        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
+            <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
+            <p><strong>Model Used:</strong> <code>Google Flan-T5 Small</code></p>
+            <p><strong>Provider:</strong> HuggingFace Transformers</p>
+            <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
     with c2:
-        st.markdown("""<div style="padding:20px; border:1px solid #ff3131; border-radius:10px;"><h3 style="color:#ff3131;">🔍 Topic Modeling</h3><p>Algorithm: LDA (Scikit-Learn)</p></div>""", unsafe_allow_html=True)
+        st.markdown("""
+        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
+            <h3 style="color:#ff3131;">🔍 Topic Modeling</h3>
+            <p><strong>Algorithm:</strong> Latent Dirichlet Allocation (LDA)</p>
+            <p><strong>Library:</strong> Scikit-Learn</p>
+            <p><strong>How it works:</strong> A statistical model that groups words that frequently appear together into hidden "Topics".</p>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
+
     c3, c4 = st.columns(2)
     with c3:
-        st.markdown("""<div style="padding:20px; border:1px solid #ff3131; border-radius:10px;"><h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3><p>Algorithm: VADER with Custom Lexicon</p></div>""", unsafe_allow_html=True)
+        st.markdown("""
+        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
+            <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
+            <p><strong>Algorithm:</strong> VADER with Custom Lexicon</p>
+            <p><strong>Enhanced Logic:</strong> We manually taught the model that:</p>
+            <ul style="color:#e0e0e0;">
+                <li>🔥 / "Lit" = Positive</li>
+                <li>"Mid" / "Meh" = Negative/Neutral</li>
+                <li>"Goat" = Strong Positive</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
     with c4:
-        st.markdown("""<div style="padding:20px; border:1px solid #ff3131; border-radius:10px;"><h3 style="color:#ff3131;">⚙️ Preprocessing</h3><p>Cleaning pipeline: Lowercase -> Stopwords -> Lemmatization</p></div>""", unsafe_allow_html=True)
+        st.markdown("""
+        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
+            <h3 style="color:#ff3131;">⚙️ Preprocessing Pipeline</h3>
+            <p>Before Topic Modeling, text undergoes cleaning:</p>
+            <ol style="color:#e0e0e0;">
+                <li><strong>Lowercasing:</strong> "Hello" → "hello"</li>
+                <li><strong>Noise Removal:</strong> Special characters and punctuation removed.</li>
+                <li><strong>Stopword Removal:</strong> Common words (the, is, at) are stripped.</li>
+                <li><strong>Lemmatization:</strong> Words converted to root form (e.g., "running" → "run").</li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🚀 How to Use")
+    st.info("1. Go to **Upload Data** and drop your CSV file.\n2. Navigate to **Topic Modeling** to find hidden themes.\n3. Check **Sentiment Analysis** for emoji-based breakdowns.\n4. Use **Reports** to visualize word clouds.")
+
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 # ==========================================
 # 2. UPLOAD DATA
