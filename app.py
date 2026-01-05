@@ -5,6 +5,7 @@ import nltk
 import matplotlib.pyplot as plt 
 import altair as alt 
 import numpy as np
+import pypdf  # <--- NEW: For PDF Support
 from textblob import TextBlob
 from wordcloud import WordCloud
 from nltk.corpus import stopwords
@@ -16,7 +17,7 @@ from transformers import pipeline
 from streamlit_lottie import st_lottie
 from streamlit_option_menu import option_menu
 
-
+# --- IMPORT UI MODULE ---
 try:
     import ui
     ui.load_css()           
@@ -25,10 +26,10 @@ try:
 except Exception:
     pass 
 
-
+# --- CONFIG ---
 st.set_page_config(page_title="NarrativeNexus", layout="wide", page_icon="🔴")
 
-
+# --- HELPER FUNCTIONS ---
 @st.cache_resource
 def load_summarizer():
     return pipeline("summarization", model="google/flan-t5-small")
@@ -40,47 +41,42 @@ def load_lottieurl(url: str):
     except:
         return None
 
-
+# NLTK Setup
 nltk.download('stopwords', quiet=True)
 nltk.download('wordnet', quiet=True)
 nltk.download('omw-1.4', quiet=True)
 nltk.download('vader_lexicon', quiet=True)
 
-# --- DATA PROCESSING ---
-# --- ROBUST DATA LOADER ---
+# --- DATA PROCESSING (UPDATED FOR PDF) ---
 def load_data(uploaded_file):
     if uploaded_file:
-        # 1. Try reading as a Standard CSV (Best case)
         try:
-            return pd.read_csv(uploaded_file, encoding='utf-8', on_bad_lines='warn')
-        except:
-            pass # If that fails, move to Plan B
+            # 1. CSV Support
+            if uploaded_file.name.endswith('.csv'):
+                return pd.read_csv(uploaded_file, encoding='utf-8', encoding_errors='replace')
+            
+            # 2. PDF Support (NEW)
+            elif uploaded_file.name.endswith('.pdf'):
+                pdf_reader = pypdf.PdfReader(uploaded_file)
+                text = ""
+                for page in pdf_reader.pages:
+                    text += page.extract_text() + "\n"
+                # Convert huge text into chunks/sentences or keep as one row
+                # For this app, we'll split by newlines to simulate "reviews" or paragraphs
+                lines = [line for line in text.split('\n') if len(line) > 20]
+                return pd.DataFrame({"extracted_text": lines})
 
-        # 2. Plan B: Read as Raw Text (Fixes the "Comma" error)
-        try:
-            # Reset file pointer to the start
-            uploaded_file.seek(0)
-            
-            # Read all lines as a list of strings
-            content = uploaded_file.read().decode("utf-8", errors='replace')
-            lines = content.split('\n')
-            
-            # Filter out empty lines
-            clean_lines = [line.strip() for line in lines if line.strip()]
-            
-            # If the first line is the header 'review_text', remove it
-            if clean_lines and 'review_text' in clean_lines[0].lower():
-                clean_lines = clean_lines[1:]
+            # 3. TXT Support
+            elif uploaded_file.name.endswith('.txt'):
+                content = uploaded_file.read().decode("utf-8")
+                lines = content.split('\n')
+                return pd.DataFrame({"text": [line for line in lines if line.strip() != ""]})
                 
-            return pd.DataFrame({"review_text": clean_lines})
-            
         except Exception as e:
-            st.error(f"Error processing file: {e}")
-            
+            st.error(f"Error reading file: {e}")
     return None
 
 def preprocess_text(text):
-    # Cleaning for Topic Modeling (removes punctuation/emojis)
     text = str(text).lower()
     text = ''.join(c for c in text if c.isalnum() or c.isspace())
     stop_words = set(stopwords.words('english'))
@@ -96,34 +92,19 @@ def run_topic_modeling(text_data, n_topics=3):
     lda.fit(dtm)
     return lda, vectorizer
 
-# --- SENTIMENT FUNCTION (Fixed for 'Mess' vs 'Perfectly') ---
+# --- SENTIMENT FUNCTION ---
 def get_sentiment(text):
     analyzer = SentimentIntensityAnalyzer()
-    
-    # Custom Dictionary to fix common errors
+    # Custom Lexicon
     new_words = {
         '🔥': 3.0, 'fire': 3.0, 'lit': 2.5, 'goat': 3.0, 'w': 3.0, '❤️': 3.0,
-        
-        # Insults (Strong Negative)
-        'dont': -4.0,
-        'not': -4.0,
-        'mess': -3.5, 
-        'confusing': -3.0, 
-        'waste': -3.5, 
-        'boring': -3.0, 
-        'trash': -3.5, 
-        'worst': -4.0, 
-        'l': -3.0,
-        'wooden': -2.5,
-        'unconvincing': -2.5,
-        
-        
-        'perfectly': 1.5 
+        'mess': -3.5, 'confusing': -3.0, 'waste': -3.5, 'boring': -3.0, 
+        'trash': -3.5, 'worst': -4.0, 'l': -3.0, 'wooden': -2.5,
+        'unconvincing': -2.5, 'perfectly': 1.5 
     }
     analyzer.lexicon.update(new_words)
     score = analyzer.polarity_scores(str(text))
     return score['compound']
-
 
 def get_sentiment_label(score):
     if score >= 0.25:
@@ -133,7 +114,7 @@ def get_sentiment_label(score):
     else:
         return "Neutral 😐"
 
-
+# --- MAIN APP LAYOUT ---
 lottie_ai = load_lottieurl("https://assets5.lottiefiles.com/packages/lf20_m9n89kpl.json")
 
 with st.sidebar:
@@ -141,6 +122,7 @@ with st.sidebar:
         st_lottie(lottie_ai, height=200, key="ai_bot")
     st.markdown("---")
     
+    # Debug Sandbox
     st.markdown("### 🧪 Live Sentiment Test")
     test_input = st.text_input("Type a sentence:")
     if test_input:
@@ -150,6 +132,13 @@ with st.sidebar:
     
     st.markdown("---")
     
+    # Utilities
+    if st.button("🧹 Clear Cache"):
+        st.cache_resource.clear()
+        st.experimental_rerun()
+
+    st.markdown("---")
+
     selected = option_menu(
         menu_title="Navigation",
         options=["Instructions", "Upload Data", "Topic Modeling", "Sentiment Analysis", "Reports"],
@@ -167,90 +156,43 @@ with st.sidebar:
 st.title("NarrativeNexus ⚡")
 st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
 
-# ====================
-# 1. INSTRUCTIONS TAB 
-# ====================
+# ==========================================
+# 1. INSTRUCTIONS
+# ==========================================
 if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
-    
     st.markdown("## 📚 Platform Documentation")
-    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data.")
-
+    st.write("Welcome to NarrativeNexus. Below is a detailed breakdown of the AI models and logic used.")
     st.markdown("---")
-
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("""
-        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
-            <p><strong>Model Used:</strong> <code>Google Flan-T5 Small</code></p>
-            <p><strong>Provider:</strong> HuggingFace Transformers</p>
-            <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown("""<div style="padding:20px; border:1px solid #ff3131; border-radius:10px;"><h3 style="color:#ff3131;">🧠 Summarization Engine</h3><p>Model: <code>Google Flan-T5 Small</code></p><p>Logic: Abstractive summarization.</p></div>""", unsafe_allow_html=True)
     with c2:
-        st.markdown("""
-        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">🔍 Topic Modeling</h3>
-            <p><strong>Algorithm:</strong> Latent Dirichlet Allocation (LDA)</p>
-            <p><strong>Library:</strong> Scikit-Learn</p>
-            <p><strong>How it works:</strong> A statistical model that groups words that frequently appear together into hidden "Topics".</p>
-        </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown("""<div style="padding:20px; border:1px solid #ff3131; border-radius:10px;"><h3 style="color:#ff3131;">🔍 Topic Modeling</h3><p>Algorithm: LDA (Scikit-Learn)</p></div>""", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-
     c3, c4 = st.columns(2)
     with c3:
-        st.markdown("""
-        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
-            <p><strong>Algorithm:</strong> VADER with Custom Lexicon</p>
-            <p><strong>Enhanced Logic:</strong> We manually taught the model that:</p>
-            <ul style="color:#e0e0e0;">
-                <li>🔥 / "Lit" = Positive</li>
-                <li>"Mid" / "Meh" = Negative/Neutral</li>
-                <li>"Goat" = Strong Positive</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-    
+        st.markdown("""<div style="padding:20px; border:1px solid #ff3131; border-radius:10px;"><h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3><p>Algorithm: VADER with Custom Lexicon</p></div>""", unsafe_allow_html=True)
     with c4:
-        st.markdown("""
-        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">⚙️ Preprocessing Pipeline</h3>
-            <p>Before Topic Modeling, text undergoes cleaning:</p>
-            <ol style="color:#e0e0e0;">
-                <li><strong>Lowercasing:</strong> "Hello" → "hello"</li>
-                <li><strong>Noise Removal:</strong> Special characters and punctuation removed.</li>
-                <li><strong>Stopword Removal:</strong> Common words (the, is, at) are stripped.</li>
-                <li><strong>Lemmatization:</strong> Words converted to root form (e.g., "running" → "run").</li>
-            </ol>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("### 🚀 How to Use")
-    st.info("1. Go to **Upload Data** and drop your CSV file.\n2. Navigate to **Topic Modeling** to find hidden themes.\n3. Check **Sentiment Analysis** for emoji-based breakdowns.\n4. Use **Reports** to visualize word clouds.")
-
+        st.markdown("""<div style="padding:20px; border:1px solid #ff3131; border-radius:10px;"><h3 style="color:#ff3131;">⚙️ Preprocessing</h3><p>Cleaning pipeline: Lowercase -> Stopwords -> Lemmatization</p></div>""", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
-# 2. UPLOAD DATA TAB
+# 2. UPLOAD DATA
 # ==========================================
 elif selected == "Upload Data":
     st.markdown("""<div data-aos="fade-up" data-aos-duration="1000">""", unsafe_allow_html=True)
-    st.markdown("""<div style="border: 1px solid #ff3131; padding: 20px; border-radius: 10px; background-color: rgba(255, 49, 49, 0.05);"><h3 style="color: #ffffff;">📂 Data Upload</h3><p style="color: #e0e0e0;">Upload your dataset below.</p></div>""", unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("", type=['txt', 'csv']) 
+    st.markdown("""<div style="border: 1px solid #ff3131; padding: 20px; border-radius: 10px; background-color: rgba(255, 49, 49, 0.05);"><h3 style="color: #ffffff;">📂 Data Upload</h3><p style="color: #e0e0e0;">Upload CSV, TXT, or PDF.</p></div>""", unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("", type=['txt', 'csv', 'pdf']) 
     if uploaded_file:
         st.session_state['df'] = load_data(uploaded_file)
-        st.success("Data uploaded successfully!")
-        st.dataframe(st.session_state['df'].head())
+        if st.session_state['df'] is not None:
+            st.success(f"Data uploaded! Found {len(st.session_state['df'])} rows.")
+            st.dataframe(st.session_state['df'].head())
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
-# 3. TOPIC MODELING TAB
+# 3. TOPIC MODELING & SUMMARY
 # ==========================================
 elif selected == "Topic Modeling":
     if 'df' in st.session_state:
@@ -278,52 +220,43 @@ elif selected == "Topic Modeling":
                 with st.spinner("AI is thinking..."):
                     try:
                         summarizer = load_summarizer()
-                        
-                        # --- 1. SHUFFLE & SAMPLE ---
-                        # Mix the reviews so we don't just get the first 10 similar ones
                         sample_df = df.sample(frac=1).reset_index(drop=True)
-                        
-                        # --- 2. JOIN TEXT ---
-                        # We take the first ~2500 chars after shuffling (mix of pos/neg)
                         raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2500]
-                        
-                        # --- 3. ADD INSTRUCTION PROMPT ---
-                        # T5 needs to be told what to do
                         input_text = "summarize: " + raw_text
-                        
-                        # --- 4. GENERATE WITH PENALTIES ---
-                        summary_result = summarizer(
-                            input_text, 
-                            max_length=150, 
-                            min_length=50, 
-                            do_sample=False,
-                            repetition_penalty=2.0 # Stops it from repeating sentences
-                        )
-                        
+                        summary_result = summarizer(input_text, max_length=150, min_length=50, do_sample=False, repetition_penalty=2.0)
                         st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary_result[0]['summary_text']}</p></div>""", unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"Error: {e}")
     else:
         st.warning("Please upload data first.")
 
-# ==========================
-# 4. SENTIMENT ANALYSIS TAB
-# ==========================
+# ==========================================
+# 4. SENTIMENT ANALYSIS (WITH EXPORT)
+# ==========================================
 elif selected == "Sentiment Analysis":
     if 'df' in st.session_state:
         df = st.session_state['df']
         text_col = st.selectbox("Select text column for sentiment:", df.columns.tolist(), key="sent_col")
         
-        # Calculate Scores
         df['sentiment_score'] = df[text_col].astype(str).apply(get_sentiment)
         df['category'] = df['sentiment_score'].apply(get_sentiment_label)
         
+        # --- EXPORT BUTTON (NEW) ---
+        col_dl, col_dummy = st.columns([1, 4])
+        with col_dl:
+            csv_data = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Results CSV",
+                data=csv_data,
+                file_name='narrative_nexus_sentiment.csv',
+                mime='text/csv'
+            )
+
         st.markdown("---")
         
-        # --- SPOTLIGHT SECTION ---
+        # Spotlight
         st.subheader("🏆 Spotlight Section")
         col_high, col_low = st.columns(2)
-        
         with col_high:
             st.markdown("### 🌟 Highly Recommended (Score > 0.75)")
             top_reviews = df[df['sentiment_score'] > 0.75].sort_values(by='sentiment_score', ascending=False).head(3)
@@ -344,7 +277,6 @@ elif selected == "Sentiment Analysis":
 
         st.markdown("---")
         
-        # --- GRAPH SECTION ---
         c1, c2 = st.columns([3, 1])
         with c1:
             st.subheader("📊 Sentiment Distribution")
@@ -370,8 +302,6 @@ elif selected == "Sentiment Analysis":
             st.metric("Negative 😞", f"{neg_pct:.1f}%")
 
         st.markdown("---")
-        
-        # --- FILTER SECTION ---
         st.subheader("🕵️ Review Inspector")
         filter_choice = st.radio("Show me:", ["All", "Positive 😀", "Negative 😞", "Neutral 😐"], horizontal=True)
         if filter_choice == "All":
@@ -383,7 +313,7 @@ elif selected == "Sentiment Analysis":
         st.warning("Please upload data first.")
 
 # ==========================================
-# 5. REPORTS TAB
+# 5. REPORTS
 # ==========================================
 elif selected == "Reports":
     st.subheader("☁️ Word Cloud Generation")
