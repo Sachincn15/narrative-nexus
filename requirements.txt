@@ -13,3 +13,4 @@ streamlit-lottie
 streamlit-option-menu
 nltk
 requests
+pypdf

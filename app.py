@@ -167,9 +167,9 @@ with st.sidebar:
 st.title("NarrativeNexus ⚡")
 st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
 
-# ==========================================
-# 1. INSTRUCTIONS TAB (RESTORED)
-# ==========================================
+# ====================
+# 1. INSTRUCTIONS TAB 
+# ====================
 if selected == "Instructions":
     st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
     
@@ -306,9 +306,9 @@ elif selected == "Topic Modeling":
     else:
         st.warning("Please upload data first.")
 
-# ==========================================
-# 4. SENTIMENT ANALYSIS TAB (WITH SPOTLIGHT)
-# ==========================================
+# ==========================
+# 4. SENTIMENT ANALYSIS TAB
+# ==========================
 elif selected == "Sentiment Analysis":
     if 'df' in st.session_state:
         df = st.session_state['df']
