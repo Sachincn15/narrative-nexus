@@ -1,23 +1,22 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import requests
-import nltk
 import matplotlib.pyplot as plt 
 import altair as alt 
-import numpy as np
-import pypdf  # <--- NEW: For PDF Support
-from textblob import TextBlob
-from wordcloud import WordCloud
-from nltk.corpus import stopwords
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
-from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.decomposition import LatentDirichletAllocation
-from transformers import pipeline
+import pypdf
+import faiss 
+from scipy.special import softmax
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+from sentence_transformers import SentenceTransformer
+from bertopic import BERTopic
 from streamlit_lottie import st_lottie
 from streamlit_option_menu import option_menu
 
-# --- IMPORT UI MODULE ---
+# --- CONFIG ---
+st.set_page_config(page_title="NarrativeNexus Pro", layout="wide", page_icon="🔴")
+
+# --- UI STYLING ---
 try:
     import ui
     ui.load_css()           
@@ -26,14 +25,7 @@ try:
 except Exception:
     pass 
 
-# --- CONFIG ---
-st.set_page_config(page_title="NarrativeNexus", layout="wide", page_icon="🔴")
-
-# --- HELPER FUNCTIONS ---
-@st.cache_resource
-def load_summarizer():
-    return pipeline("summarization", model="google/flan-t5-small")
-
+# --- HELPER: LOAD LOTTIE ---
 def load_lottieurl(url: str):
     try:
         r = requests.get(url)
@@ -41,350 +33,211 @@ def load_lottieurl(url: str):
     except:
         return None
 
-# NLTK Setup
-nltk.download('stopwords', quiet=True)
-nltk.download('wordnet', quiet=True)
-nltk.download('omw-1.4', quiet=True)
-nltk.download('vader_lexicon', quiet=True)
+# --- CACHED MODEL LOADING (CRITICAL FOR PERFORMANCE) ---
 
-# --- DATA PROCESSING (UPDATED FOR PDF) ---
+@st.cache_resource
+def load_rag_models():
+    """Loads embedding model and T5 for RAG"""
+    embedder = SentenceTransformer('all-MiniLM-L6-v2')
+    generator = pipeline("text2text-generation", model="google/flan-t5-small")
+    return embedder, generator
+
+@st.cache_resource
+def load_roberta_model():
+    """Loads RoBERTa for Sentiment"""
+    MODEL = "cardiffnlp/twitter-roberta-base-sentiment"
+    tokenizer = AutoTokenizer.from_pretrained(MODEL)
+    model = AutoModelForSequenceClassification.from_pretrained(MODEL)
+    return tokenizer, model
+
+# --- DATA LOADER ---
 def load_data(uploaded_file):
     if uploaded_file:
         try:
-            # 1. CSV Support
             if uploaded_file.name.endswith('.csv'):
-                return pd.read_csv(uploaded_file, encoding='utf-8', encoding_errors='replace')
-            
-            # 2. PDF Support (NEW)
+                try:
+                    return pd.read_csv(uploaded_file, encoding='utf-8', on_bad_lines='warn')
+                except:
+                    # Fallback for comma errors
+                    uploaded_file.seek(0)
+                    content = uploaded_file.read().decode("utf-8", errors='replace')
+                    lines = [line.strip() for line in content.split('\n') if line.strip()]
+                    if lines and 'review_text' in lines[0].lower(): lines = lines[1:]
+                    return pd.DataFrame({"review_text": lines})
+
             elif uploaded_file.name.endswith('.pdf'):
                 pdf_reader = pypdf.PdfReader(uploaded_file)
                 text = ""
                 for page in pdf_reader.pages:
                     text += page.extract_text() + "\n"
-                # Convert huge text into chunks/sentences or keep as one row
-                # For this app, we'll split by newlines to simulate "reviews" or paragraphs
                 lines = [line for line in text.split('\n') if len(line) > 20]
-                return pd.DataFrame({"extracted_text": lines})
+                return pd.DataFrame({"review_text": lines})
 
-            # 3. TXT Support
             elif uploaded_file.name.endswith('.txt'):
                 content = uploaded_file.read().decode("utf-8")
                 lines = content.split('\n')
-                return pd.DataFrame({"text": [line for line in lines if line.strip() != ""]})
+                return pd.DataFrame({"review_text": [line for line in lines if line.strip() != ""]})
                 
         except Exception as e:
             st.error(f"Error reading file: {e}")
     return None
 
-def preprocess_text(text):
-    text = str(text).lower()
-    text = ''.join(c for c in text if c.isalnum() or c.isspace())
-    stop_words = set(stopwords.words('english'))
-    lemmatizer = WordNetLemmatizer()
-    words = text.split()
-    return " ".join([lemmatizer.lemmatize(w) for w in words if w not in stop_words])
+# --- AI ENGINES ---
 
-# --- ANALYSIS ALGORITHMS ---
-def run_topic_modeling(text_data, n_topics=3):
-    vectorizer = CountVectorizer(max_df=0.9, min_df=2, stop_words='english')
-    dtm = vectorizer.fit_transform(text_data)
-    lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
-    lda.fit(dtm)
-    return lda, vectorizer
+def get_roberta_sentiment(text):
+    """Deep Learning Sentiment Analysis"""
+    tokenizer, model = load_roberta_model()
+    encoded_input = tokenizer(str(text)[:512], return_tensors='pt')
+    output = model(**encoded_input)
+    scores = output.logits[0].detach().numpy()
+    scores = softmax(scores) # [Neg, Neu, Pos]
+    
+    labels = ['Negative 😞', 'Neutral 😐', 'Positive 😀']
+    ranking = np.argsort(scores)[::-1]
+    top_label = labels[ranking[0]]
+    top_score = scores[ranking[0]]
+    
+    if top_label == 'Negative 😞': top_score = -top_score
+    return top_score, top_label
 
-# --- SENTIMENT FUNCTION ---
-def get_sentiment(text):
-    analyzer = SentimentIntensityAnalyzer()
-    # Custom Lexicon
-    new_words = {
-        '🔥': 3.0, 'fire': 3.0, 'lit': 2.5, 'goat': 3.0, 'w': 3.0, '❤️': 3.0,
-        'mess': -3.5, 'confusing': -3.0, 'waste': -3.5, 'boring': -3.0, 
-        'trash': -3.5, 'worst': -4.0, 'l': -3.0, 'wooden': -2.5,
-        'unconvincing': -2.5, 'perfectly': 1.5 
-    }
-    analyzer.lexicon.update(new_words)
-    score = analyzer.polarity_scores(str(text))
-    return score['compound']
+def run_bertopic(docs):
+    """Advanced Topic Modeling"""
+    topic_model = BERTopic(embedding_model="all-MiniLM-L6-v2", min_topic_size=5)
+    topics, probs = topic_model.fit_transform(docs)
+    return topic_model, topic_model.get_topic_info()
 
-def get_sentiment_label(score):
-    if score >= 0.25:
-        return "Positive 😀"
-    elif score <= -0.25:
-        return "Negative 😞"
-    else:
-        return "Neutral 😐"
+class RAGEngine:
+    """Chat with Data Logic"""
+    def __init__(self, text_data):
+        self.texts = text_data
+        self.embedder, self.generator = load_rag_models()
+        self.index = None
+        self._build_index()
+        
+    def _build_index(self):
+        embeddings = self.embedder.encode(self.texts)
+        dimension = embeddings.shape[1]
+        self.index = faiss.IndexFlatL2(dimension)
+        self.index.add(embeddings)
+        
+    def query(self, user_question):
+        q_embed = self.embedder.encode([user_question])
+        distances, indices = self.index.search(q_embed, 5) # Retrieve Top 5
+        retrieved_docs = [self.texts[i] for i in indices[0]]
+        context_str = "\n".join(retrieved_docs)
+        prompt = f"question: {user_question} context: {context_str}"
+        response = self.generator(prompt, max_length=150, do_sample=False)
+        return response[0]['generated_text'], retrieved_docs
 
 # --- MAIN APP LAYOUT ---
+
+# Session State for Chat
+if 'rag_engine' not in st.session_state: st.session_state.rag_engine = None
+if 'messages' not in st.session_state: st.session_state.messages = []
+
 lottie_ai = load_lottieurl("https://assets5.lottiefiles.com/packages/lf20_m9n89kpl.json")
 
 with st.sidebar:
-    if lottie_ai:
-        st_lottie(lottie_ai, height=200, key="ai_bot")
+    if lottie_ai: st_lottie(lottie_ai, height=200, key="ai_bot")
     st.markdown("---")
     
-    # Debug Sandbox
-    st.markdown("### 🧪 Live Sentiment Test")
-    test_input = st.text_input("Type a sentence:")
-    if test_input:
-        score = get_sentiment(test_input)
-        label = get_sentiment_label(score)
-        st.markdown(f"**Score:** {score:.2f} | **Result:** {label}")
-    
-    st.markdown("---")
-    
-    # Utilities
-    if st.button("🧹 Clear Cache"):
-        st.cache_resource.clear()
-        st.experimental_rerun()
-
-    st.markdown("---")
-
     selected = option_menu(
         menu_title="Navigation",
-        options=["Instructions", "Upload Data", "Topic Modeling", "Sentiment Analysis", "Reports"],
-        icons=["info-circle-fill", "cloud-upload", "cpu-fill", "heart-pulse-fill", "file-earmark-text"],
-        menu_icon="cast",
+        options=["Upload Data", "Advanced Topics", "AI Sentiment", "Chat with Data"],
+        icons=["cloud-upload", "diagram-3-fill", "heart-pulse-fill", "chat-dots-fill"],
         default_index=0,
-        styles={
-            "container": {"padding": "5!important", "background-color": "transparent"},
-            "icon": {"color": "#ff3131", "font-size": "25px"},
-            "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#300000"},
-            "nav-link-selected": {"background-color": "#ff3131", "color": "#ffffff"},
-        }
+        styles={"nav-link-selected": {"background-color": "#ff3131"}}
     )
+    st.info("ℹ️ Pro Features Enabled: RoBERTa & BERTopic")
 
-st.title("NarrativeNexus ⚡")
-st.markdown("### The AI-Powered Dynamic Text Analysis Platform")
+st.title("NarrativeNexus ⚡ Pro")
 
-# ==========================================
-# 1. INSTRUCTIONS
-# ==========================================
-if selected == "Instructions":
-    st.markdown("""<div data-aos="fade-right">""", unsafe_allow_html=True)
-    
-    st.markdown("## 📚 Platform Documentation")
-    st.write("Welcome to NarrativeNexus. This platform uses advanced Natural Language Processing (NLP) techniques to analyze text data.")
-
-    st.markdown("---")
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("""
-        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
-            <p><strong>Model Used:</strong> <code>Google Flan-T5 Small</code></p>
-            <p><strong>Provider:</strong> HuggingFace Transformers</p>
-            <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with c2:
-        st.markdown("""
-        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">🔍 Topic Modeling</h3>
-            <p><strong>Algorithm:</strong> Latent Dirichlet Allocation (LDA)</p>
-            <p><strong>Library:</strong> Scikit-Learn</p>
-            <p><strong>How it works:</strong> A statistical model that groups words that frequently appear together into hidden "Topics".</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    c3, c4 = st.columns(2)
-    with c3:
-        st.markdown("""
-        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">❤️ Sentiment & Emojis</h3>
-            <p><strong>Algorithm:</strong> VADER with Custom Lexicon</p>
-            <p><strong>Enhanced Logic:</strong> We manually taught the model that:</p>
-            <ul style="color:#e0e0e0;">
-                <li>🔥 / "Lit" = Positive</li>
-                <li>"Mid" / "Meh" = Negative/Neutral</li>
-                <li>"Goat" = Strong Positive</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with c4:
-        st.markdown("""
-        <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
-            <h3 style="color:#ff3131;">⚙️ Preprocessing Pipeline</h3>
-            <p>Before Topic Modeling, text undergoes cleaning:</p>
-            <ol style="color:#e0e0e0;">
-                <li><strong>Lowercasing:</strong> "Hello" → "hello"</li>
-                <li><strong>Noise Removal:</strong> Special characters and punctuation removed.</li>
-                <li><strong>Stopword Removal:</strong> Common words (the, is, at) are stripped.</li>
-                <li><strong>Lemmatization:</strong> Words converted to root form (e.g., "running" → "run").</li>
-            </ol>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("### 🚀 How to Use")
-    st.info("1. Go to **Upload Data** and drop your CSV file.\n2. Navigate to **Topic Modeling** to find hidden themes.\n3. Check **Sentiment Analysis** for emoji-based breakdowns.\n4. Use **Reports** to visualize word clouds.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ==========================================
-# 2. UPLOAD DATA
-# ==========================================
-elif selected == "Upload Data":
-    st.markdown("""<div data-aos="fade-up" data-aos-duration="1000">""", unsafe_allow_html=True)
-    st.markdown("""<div style="border: 1px solid #ff3131; padding: 20px; border-radius: 10px; background-color: rgba(255, 49, 49, 0.05);"><h3 style="color: #ffffff;">📂 Data Upload</h3><p style="color: #e0e0e0;">Upload CSV, TXT, or PDF.</p></div>""", unsafe_allow_html=True)
+# 1. UPLOAD
+if selected == "Upload Data":
+    st.info("📂 Upload CSV, PDF, or TXT.")
     uploaded_file = st.file_uploader("", type=['txt', 'csv', 'pdf']) 
     if uploaded_file:
-        st.session_state['df'] = load_data(uploaded_file)
-        if st.session_state['df'] is not None:
-            st.success(f"Data uploaded! Found {len(st.session_state['df'])} rows.")
-            st.dataframe(st.session_state['df'].head())
-    st.markdown("</div>", unsafe_allow_html=True)
+        df = load_data(uploaded_file)
+        if df is not None:
+            st.session_state['df'] = df
+            
+            # Init RAG on upload
+            with st.spinner("Indexing data for Chat..."):
+                text_col = df.columns[0]
+                st.session_state.rag_engine = RAGEngine(df[text_col].astype(str).tolist())
+            
+            st.success("Data Loaded & Indexed!")
+            st.dataframe(df.head())
 
-# ==========================================
-# 3. TOPIC MODELING & SUMMARY
-# ==========================================
-elif selected == "Topic Modeling":
+# 2. ADVANCED TOPICS (BERTopic)
+elif selected == "Advanced Topics":
     if 'df' in st.session_state:
         df = st.session_state['df']
-        text_col = st.selectbox("Select text column to analyze:", df.columns.tolist())
-        df[text_col] = df[text_col].astype(str)
-        df['cleaned_text'] = df[text_col].apply(preprocess_text)
+        text_col = st.selectbox("Select Text Column:", df.columns)
         
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.subheader("🔍 Topic Extraction")
-            num_topics = st.slider("Number of Topics", 2, 10, 3)
-            if st.button("Run LDA Analysis"):
-                try:
-                    lda_model, vectorizer = run_topic_modeling(df['cleaned_text'], num_topics)
-                    feature_names = vectorizer.get_feature_names_out()
-                    for idx, topic in enumerate(lda_model.components_):
-                        keywords = ", ".join([feature_names[i] for i in topic.argsort()[-10:]])
-                        st.markdown(f"""<div style="padding:15px; border-left: 4px solid #ff3131; background:rgba(255,255,255,0.05); margin-bottom:10px;"><strong style="color:#ff3131;">Topic {idx+1}:</strong> <span style="color:#e0e0e0">{keywords}</span></div>""", unsafe_allow_html=True)
-                except ValueError:
-                    st.error("Not enough clean text to generate topics.")
-        with col2:
-            st.subheader("🧠 Summarization")
-            if st.button("Generate Summary"):
-                with st.spinner("AI is thinking..."):
-                    try:
-                        summarizer = load_summarizer()
-                        sample_df = df.sample(frac=1).reset_index(drop=True)
-                        raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2500]
-                        input_text = "summarize: " + raw_text
-                        summary_result = summarizer(input_text, max_length=150, min_length=50, do_sample=False, repetition_penalty=2.0)
-                        st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary_result[0]['summary_text']}</p></div>""", unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+        if st.button("Run BERTopic"):
+            with st.spinner("Clustering topics..."):
+                docs = df[text_col].astype(str).tolist()
+                topic_model, topic_info = run_bertopic(docs)
+                
+                st.subheader("Topic Clusters")
+                fig = topic_model.visualize_topics()
+                st.plotly_chart(fig, use_container_width=True)
+                
+                st.subheader("Keywords")
+                st.dataframe(topic_info[['Topic', 'Count', 'Name']])
     else:
-        st.warning("Please upload data first.")
+        st.warning("Upload data first.")
 
-# ==========================================
-# 4. SENTIMENT ANALYSIS (WITH EXPORT)
-# ==========================================
-elif selected == "Sentiment Analysis":
+# 3. AI SENTIMENT (RoBERTa)
+elif selected == "AI Sentiment":
     if 'df' in st.session_state:
         df = st.session_state['df']
-        text_col = st.selectbox("Select text column for sentiment:", df.columns.tolist(), key="sent_col")
+        text_col = st.selectbox("Select Text Column:", df.columns)
         
-        df['sentiment_score'] = df[text_col].astype(str).apply(get_sentiment)
-        df['category'] = df['sentiment_score'].apply(get_sentiment_label)
-        
-        # --- EXPORT BUTTON (NEW) ---
-        col_dl, col_dummy = st.columns([1, 4])
-        with col_dl:
-            csv_data = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Results CSV",
-                data=csv_data,
-                file_name='narrative_nexus_sentiment.csv',
-                mime='text/csv'
-            )
-
-        st.markdown("---")
-        
-        # Spotlight
-        st.subheader("🏆 Spotlight Section")
-        col_high, col_low = st.columns(2)
-        with col_high:
-            st.markdown("### 🌟 Highly Recommended (Score > 0.75)")
-            top_reviews = df[df['sentiment_score'] > 0.75].sort_values(by='sentiment_score', ascending=False).head(3)
-            if not top_reviews.empty:
-                for index, row in top_reviews.iterrows():
-                    st.markdown(f"""<div style="padding:10px; border:1px solid #00ff9d; border-radius:10px; margin-bottom:10px; background-color:rgba(0, 255, 157, 0.05);"><strong style="color:#00ff9d">Score: {row['sentiment_score']:.2f}</strong><br><span style="color:white;">"{row[text_col]}"</span></div>""", unsafe_allow_html=True)
-            else:
-                st.info("No highly recommended reviews found.")
-
-        with col_low:
-            st.markdown("### 🚩 Critical Alerts (Score < -0.5)")
-            low_reviews = df[df['sentiment_score'] < -0.5].sort_values(by='sentiment_score', ascending=True).head(3)
-            if not low_reviews.empty:
-                for index, row in low_reviews.iterrows():
-                    st.markdown(f"""<div style="padding:10px; border:1px solid #ff3131; border-radius:10px; margin-bottom:10px; background-color:rgba(255, 49, 49, 0.05);"><strong style="color:#ff3131">Score: {row['sentiment_score']:.2f}</strong><br><span style="color:white;">"{row[text_col]}"</span></div>""", unsafe_allow_html=True)
-            else:
-                st.info("No critical negative reviews found.")
-
-        st.markdown("---")
-        
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            st.subheader("📊 Sentiment Distribution")
-            chart_data = df['category'].value_counts().reset_index()
-            chart_data.columns = ['category', 'count']
-            domain = ['Negative 😞', 'Neutral 😐', 'Positive 😀']
-            range_ = ['#ff3131', '#808080', '#00ff9d'] 
-            chart = alt.Chart(chart_data).mark_bar().encode(
-                x=alt.X('category', axis=alt.Axis(labelColor='white')),
-                y=alt.Y('count', axis=alt.Axis(labelColor='white')),
-                color=alt.Color('category', scale=alt.Scale(domain=domain, range=range_), legend=None),
-                tooltip=['category', 'count']
-            ).properties(height=300).configure_view(strokeWidth=0).configure_axis(grid=False)
-            st.altair_chart(chart, use_container_width=True)
-
-        with c2:
-            st.subheader("Metrics")
+        if st.button("Run RoBERTa Analysis"):
+            progress_bar = st.progress(0)
+            results = []
             total = len(df)
-            pos_pct = (len(df[df['category']=='Positive 😀']) / total) * 100
-            neg_pct = (len(df[df['category']=='Negative 😞']) / total) * 100
-            st.metric("Total Reviews", total)
-            st.metric("Positive 😀", f"{pos_pct:.1f}%")
-            st.metric("Negative 😞", f"{neg_pct:.1f}%")
-
-        st.markdown("---")
-        st.subheader("🕵️ Review Inspector")
-        filter_choice = st.radio("Show me:", ["All", "Positive 😀", "Negative 😞", "Neutral 😐"], horizontal=True)
-        if filter_choice == "All":
-            filtered_df = df
-        else:
-            filtered_df = df[df['category'] == filter_choice]
-        st.dataframe(filtered_df[[text_col, 'sentiment_score', 'category']], use_container_width=True, height=400)
+            
+            for i, text in enumerate(df[text_col]):
+                score, label = get_roberta_sentiment(text)
+                results.append({'score': score, 'label': label})
+                if i % 10 == 0: progress_bar.progress((i + 1) / total)
+            progress_bar.empty()
+            
+            res_df = pd.DataFrame(results)
+            df = pd.concat([df.reset_index(drop=True), res_df], axis=1)
+            
+            # Export
+            st.download_button("📥 Download CSV", df.to_csv(index=False).encode('utf-8'), "sentiment.csv")
+            
+            # Visualization
+            st.subheader("📊 Distribution")
+            chart = alt.Chart(df['label'].value_counts().reset_index(name='count').rename(columns={'index':'label'})).mark_bar().encode(
+                x='label', y='count', color=alt.Color('label', scale=alt.Scale(range=['#ff3131', '#808080', '#00ff9d']))
+            )
+            st.altair_chart(chart, use_container_width=True)
     else:
-        st.warning("Please upload data first.")
+        st.warning("Upload data first.")
 
-# ==========================================
-# 5. REPORTS
-# ==========================================
-elif selected == "Reports":
-    st.subheader("☁️ Word Cloud Generation")
-    if 'df' in st.session_state:
-        df = st.session_state['df']
-        if 'cleaned_text' not in df.columns:
-            text_col = df.columns[0]
-            df['cleaned_text'] = df[text_col].astype(str).apply(preprocess_text)
-        all_text = " ".join(df['cleaned_text'])
-        if len(all_text) > 0:
-            st.markdown("generating visualization...")
-            wordcloud = WordCloud(width=800, height=400, background_color='black', colormap='inferno', contour_color='#ff3131', contour_width=1, max_words=100).generate(all_text)
-            fig, ax = plt.subplots(figsize=(10, 5))
-            fig.patch.set_facecolor('black')
-            ax.imshow(wordcloud, interpolation='bilinear')
-            ax.axis("off")
-            st.markdown('<div style="border: 2px solid #ff3131; border-radius: 10px; overflow: hidden;">', unsafe_allow_html=True)
-            st.pyplot(fig)
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.warning("Not enough text data.")
+# 4. CHAT WITH DATA (RAG)
+elif selected == "Chat with Data":
+    st.subheader("🤖 Ask your data")
+    if 'rag_engine' in st.session_state and st.session_state.rag_engine:
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]): st.markdown(msg["content"])
+
+        if prompt := st.chat_input("Ask a question..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"): st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    response, sources = st.session_state.rag_engine.query(prompt)
+                    st.markdown(response)
+                    with st.expander("Sources"):
+                        for s in sources: st.text(f"- {s[:100]}...")
+            st.session_state.messages.append({"role": "assistant", "content": response})
     else:
-        st.warning("No data available.")
-
-st.markdown("<script>AOS.init();</script>", unsafe_allow_html=True)
+        st.warning("Upload data first.")
