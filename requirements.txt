@@ -1,16 +1,27 @@
 streamlit
 pandas
 numpy
+requests
 matplotlib
 altair
 scikit-learn
-textblob
-wordcloud
-transformers
-torch
-sentencepiece
+nltk
+scipy
+
+# UI Components
 streamlit-lottie
 streamlit-option-menu
-nltk
-requests
+
+# File Handling
 pypdf
+
+# Deep Learning Core
+torch
+transformers
+sentencepiece
+
+
+sentence-transformers   
+faiss-cpu              
+bertopic               
+plotly                 
