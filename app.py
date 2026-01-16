@@ -135,7 +135,7 @@ with st.sidebar:
     # Utilities
     if st.button("🧹 Clear Cache"):
         st.cache_resource.clear()
-        st.experimental_rerun()
+        st.rerun()
 
     st.markdown("---")
 
