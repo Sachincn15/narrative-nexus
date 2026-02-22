@@ -32,7 +32,7 @@ st.set_page_config(page_title="NarrativeNexus", layout="wide", page_icon="🔴")
 # --- HELPER FUNCTIONS ---
 @st.cache_resource
 def load_summarizer():
-    return pipeline("summarization", model="google/flan-t5-small")
+    return pipeline("summarization", model="t5-small")
 
 def load_lottieurl(url: str):
     try:
