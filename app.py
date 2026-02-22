@@ -32,7 +32,8 @@ st.set_page_config(page_title="NarrativeNexus", layout="wide", page_icon="🔴")
 # --- HELPER FUNCTIONS ---
 @st.cache_resource
 def load_summarizer():
-    return pipeline("summarization", model="t5-small")
+    # CHANGED: Using DistilBART instead of t5-small
+    return pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
 
 def load_lottieurl(url: str):
     try:
@@ -172,7 +173,7 @@ if selected == "Instructions":
         st.markdown("""
         <div style="padding:20px; border:1px solid #ff3131; border-radius:10px; height:100%;">
             <h3 style="color:#ff3131;">🧠 Summarization Engine</h3>
-            <p><strong>Model Used:</strong> <code>Google Flan-T5 Small</code></p>
+            <p><strong>Model Used:</strong> <code>DistilBART (sshleifer/distilbart-cnn-12-6)</code></p>
             <p><strong>Provider:</strong> HuggingFace Transformers</p>
             <p><strong>How it works:</strong> An abstractive summarization model that understands context and generates new sentences to summarize the input text.</p>
         </div>
@@ -271,8 +272,10 @@ elif selected == "Topic Modeling":
                         summarizer = load_summarizer()
                         sample_df = df.sample(frac=1).reset_index(drop=True)
                         raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2500]
-                        input_text = "summarize: " + raw_text
-                        summary_result = summarizer(input_text, max_length=150, min_length=50, do_sample=False, repetition_penalty=2.0)
+                        
+                        # CHANGED: Removed the "summarize: " prefix because DistilBART does not require it.
+                        summary_result = summarizer(raw_text, max_length=150, min_length=50, do_sample=False, repetition_penalty=2.0)
+                        
                         st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary_result[0]['summary_text']}</p></div>""", unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"Error: {e}")
