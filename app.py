@@ -39,32 +39,7 @@ def load_summarizer_model():
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     return tokenizer, model
 
-# In your "Topic Modeling" section, update the Generate Summary block:
-with col2:
-    st.subheader("🧠 Summarization")
-    if st.button("Generate Summary"):
-        with st.spinner("AI is thinking..."):
-            try:
-                tokenizer, model = load_summarizer_model()
-                sample_df = df.sample(frac=1).reset_index(drop=True)
-                raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2000]
-                
-                # Manual encoding and generation
-                inputs = tokenizer(raw_text, return_tensors="pt", max_length=1024, truncation=True)
-                summary_ids = model.generate(
-                    inputs["input_ids"], 
-                    max_length=150, 
-                    min_length=40, 
-                    length_penalty=2.0, 
-                    num_beams=4, 
-                    early_stopping=True
-                )
-                summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-                
-                st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary}</p></div>""", unsafe_allow_html=True)
-            except Exception as e:
-                st.error(f"Error: {e}")
-                
+
 def load_lottieurl(url: str):
     try:
         r = requests.get(url)
@@ -295,22 +270,29 @@ elif selected == "Topic Modeling":
                 except ValueError:
                     st.error("Not enough clean text to generate topics.")
         with col2:
-            st.subheader("🧠 Summarization")
-            if st.button("Generate Summary"):
-                with st.spinner("AI is thinking..."):
-                    try:
-                        summarizer = load_summarizer()
-                        sample_df = df.sample(frac=1).reset_index(drop=True)
-                        raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2500]
-                        
-                        # CHANGED: Removed the "summarize: " prefix because DistilBART does not require it.
-                        summary_result = summarizer(raw_text, max_length=150, min_length=50, do_sample=False, repetition_penalty=2.0)
-                        
-                        st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary_result[0]['summary_text']}</p></div>""", unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-    else:
-        st.warning("Please upload data first.")
+    st.subheader("🧠 Summarization")
+    if st.button("Generate Summary"):
+        with st.spinner("AI is thinking..."):
+            try:
+                tokenizer, model = load_summarizer_model()
+                sample_df = df.sample(frac=1).reset_index(drop=True)
+                raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2000]
+                
+                # Manual encoding and generation
+                inputs = tokenizer(raw_text, return_tensors="pt", max_length=1024, truncation=True)
+                summary_ids = model.generate(
+                    inputs["input_ids"], 
+                    max_length=150, 
+                    min_length=40, 
+                    length_penalty=2.0, 
+                    num_beams=4, 
+                    early_stopping=True
+                )
+                summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+                
+                st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary}</p></div>""", unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Error: {e}")
 
 # ==========================================
 # 4. SENTIMENT ANALYSIS (WITH EXPORT)
