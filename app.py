@@ -103,7 +103,7 @@ def get_sentiment(text):
     analyzer = SentimentIntensityAnalyzer()
     # Custom Lexicon
     new_words = {
-        '🔥': 3.0, 'fire': 3.0, 'lit': 2.5, 'goat': 3.0, 'w': 3.0, '❤️': 3.0,
+        '🔥': 5.0, 'fire': 3.0, 'lit': 2.5, 'goat': 3.0, 'w': 3.0, '❤️': 3.0,
         'mess': -3.5, 'confusing': -3.0, 'waste': -3.5, 'boring': -3.0, 
         'trash': -3.5, 'worst': -4.0, 'l': -3.0, 'wooden': -2.5,
         'unconvincing': -2.5, 'perfectly': 1.5 
@@ -204,7 +204,7 @@ if selected == "Instructions":
             <p><strong>Algorithm:</strong> VADER with Custom Lexicon</p>
             <p><strong>Enhanced Logic:</strong> We manually taught the model that:</p>
             <ul style="color:#e0e0e0;">
-                <li>🔥 / "Lit" = Positive</li>
+                <li>"🔥"/ "Lit" = Positive</li>
                 <li>"Mid" / "Meh" = Negative/Neutral</li>
                 <li>"Goat" = Strong Positive</li>
             </ul>
