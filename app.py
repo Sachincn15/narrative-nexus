@@ -257,6 +257,7 @@ elif selected == "Topic Modeling":
         df['cleaned_text'] = df[text_col].apply(preprocess_text)
         
         col1, col2 = st.columns([2, 1])
+        
         with col1:
             st.subheader("🔍 Topic Extraction")
             num_topics = st.slider("Number of Topics", 2, 10, 3)
@@ -269,30 +270,43 @@ elif selected == "Topic Modeling":
                         st.markdown(f"""<div style="padding:15px; border-left: 4px solid #ff3131; background:rgba(255,255,255,0.05); margin-bottom:10px;"><strong style="color:#ff3131;">Topic {idx+1}:</strong> <span style="color:#e0e0e0">{keywords}</span></div>""", unsafe_allow_html=True)
                 except ValueError:
                     st.error("Not enough clean text to generate topics.")
+
         with col2:
             st.subheader("🧠 Summarization")
+            # Added a slider for user control
+            sum_len = st.select_slider("Summary Detail", options=["Short", "Medium", "Long"], value="Medium")
+            
             if st.button("Generate Summary"):
-            with st.spinner("AI is thinking..."):
-                try:
-                    tokenizer, model = load_summarizer_model()
-                    sample_df = df.sample(frac=1).reset_index(drop=True)
-                    raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2000]
-                
-                    # Manual encoding and generation
-                    inputs = tokenizer(raw_text, return_tensors="pt", max_length=1024, truncation=True)
-                    summary_ids = model.generate(
-                    inputs["input_ids"], 
-                    max_length=150, 
-                    min_length=40, 
-                    length_penalty=2.0, 
-                    num_beams=4, 
-                    early_stopping=True
-                )
-                summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-                
-                st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary}</p></div>""", unsafe_allow_html=True)
-            except Exception as e:
-            st.error(f"Error: {e}")
+                with st.spinner("AI is thinking..."):
+                    try:
+                        # Using the AutoModel logic to fix your previous "Unknown Task" error
+                        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+                        
+                        model_name = "sshleifer/distilbart-cnn-12-6"
+                        tokenizer = AutoTokenizer.from_pretrained(model_name)
+                        model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+                        
+                        # Prepare text
+                        sample_df = df.sample(frac=1).reset_index(drop=True)
+                        raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2000]
+                        
+                        inputs = tokenizer(raw_text, return_tensors="pt", max_length=1024, truncation=True)
+                        
+                        # Set lengths based on slider
+                        len_map = {"Short": 50, "Medium": 100, "Long": 200}
+                        
+                        summary_ids = model.generate(
+                            inputs["input_ids"], 
+                            max_length=len_map[sum_len], 
+                            min_length=30, 
+                            num_beams=4, 
+                            early_stopping=True
+                        )
+                        summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+                        
+                        st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary}</p></div>""", unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error(f"Summarization Error: {e}")
 
 # ==========================================
 # 4. SENTIMENT ANALYSIS (WITH EXPORT)
