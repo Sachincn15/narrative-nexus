@@ -32,8 +32,8 @@ st.set_page_config(page_title="NarrativeNexus", layout="wide", page_icon="🔴")
 # --- HELPER FUNCTIONS ---
 @st.cache_resource
 def load_summarizer():
-    # CHANGED: Using DistilBART instead of t5-small
-    return pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+    # We change the task string to the more explicit category
+    return pipeline("text2text-generation", model="sshleifer/distilbart-cnn-12-6")
 
 def load_lottieurl(url: str):
     try:
