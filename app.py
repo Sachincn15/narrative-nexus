@@ -30,11 +30,41 @@ except Exception:
 st.set_page_config(page_title="NarrativeNexus", layout="wide", page_icon="🔴")
 
 # --- HELPER FUNCTIONS ---
-@st.cache_resource
-def load_summarizer():
-    # We change the task string to the more explicit category
-    return pipeline("text2text-generation", model="sshleifer/distilbart-cnn-12-6")
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
+@st.cache_resource
+def load_summarizer_model():
+    model_name = "sshleifer/distilbart-cnn-12-6"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    return tokenizer, model
+
+# In your "Topic Modeling" section, update the Generate Summary block:
+with col2:
+    st.subheader("🧠 Summarization")
+    if st.button("Generate Summary"):
+        with st.spinner("AI is thinking..."):
+            try:
+                tokenizer, model = load_summarizer_model()
+                sample_df = df.sample(frac=1).reset_index(drop=True)
+                raw_text = " ".join(sample_df[text_col].astype(str).tolist())[:2000]
+                
+                # Manual encoding and generation
+                inputs = tokenizer(raw_text, return_tensors="pt", max_length=1024, truncation=True)
+                summary_ids = model.generate(
+                    inputs["input_ids"], 
+                    max_length=150, 
+                    min_length=40, 
+                    length_penalty=2.0, 
+                    num_beams=4, 
+                    early_stopping=True
+                )
+                summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+                
+                st.markdown(f"""<div style="padding:20px; background-color:rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; border-radius: 10px;"><h4 style="color:#ff3131;">AI Insight:</h4><p style="color:white;">{summary}</p></div>""", unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Error: {e}")
+                
 def load_lottieurl(url: str):
     try:
         r = requests.get(url)
